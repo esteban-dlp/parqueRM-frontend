@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm add *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm exec *)",
+      "Bash(pnpm build *)",
+      "Bash(timeout 15 pnpm dev *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(pkill -f \"pnpm dev\")",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(ls -1 *.md)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"barbershop grooming men elegant masculine premium professional\" --design-system -p \"The Shave Barbershop\")",
+      "Bash(pnpm dev *)",
+      "Bash(gemini extensions *)",
+      "Bash(gemini --yolo \"/generate 'professional dark barbershop interior, moody cinematic lighting, vintage leather chair, classic barber station with mirrors, warm amber tones, no text, editorial photography' --aspect=16:9\")",
+      "Bash(cat \"C:\\\\Users\\\\Esteban\\\\OneDrive\\\\PROYECTOS\\\\kodalabs-landing-template\"/next.config.*)",
+      "Bash(grep -rEi --include=\"*.tsx\" -n \"Follow us|Premium catering|Business Location|unforgettable events|Hours$|Events Catered|Years Experience|Client Satisfaction|Step \" src/components)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(node -e \"console.log\\(require.resolve\\('sharp'\\)\\)\")",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s http://localhost:3000 -o /dev/null)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"SaaS startup landing page premium animations\" --design-system -p \"Klyro\")",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "stitch",
+    "magic"
+  ]
+}

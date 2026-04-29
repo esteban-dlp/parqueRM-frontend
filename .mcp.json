@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "stitch": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@_davideast/stitch-mcp",
+        "proxy"
+      ],
+      "env": {
+        "STITCH_API_KEY": "${STITCH_API_KEY}"
+      }
+    },
+    "magic": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@21st-dev/magic@latest",
+        "API_KEY=${MAGIC_API_KEY}"
+      ],
+      "env": {}
+    }
+  }
+}
