@@ -16,7 +16,8 @@ import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { formatCurrency } from '@/utils/formatters'
+import { formatCurrency, toNum } from '@/utils/formatters'
+import { getApiErrorMessage } from '@/api/client'
 import { useToast } from '@/hooks/useToast'
 import type { ReceiptOriginType, Receipt } from '@/types/receipts'
 import styles from './CobroPage.module.css'
@@ -91,6 +92,7 @@ export default function CobroPage() {
     handleSubmit,
     watch,
     setValue,
+    setError,
     control,
     reset,
     formState: { errors, isSubmitting },
@@ -115,7 +117,7 @@ export default function CobroPage() {
     watchLines?.forEach((line, i) => {
       const qty = Number(line.quantity) || 1
       const price = Number(line.unitPrice) || 0
-      const computed = parseFloat((qty * price).toFixed(2))
+      const computed = parseFloat((toNum(qty) * toNum(price)).toFixed(2))
       if (computed !== Number(line.total)) {
         setValue(`lines.${i}.total`, computed)
       }
@@ -165,10 +167,21 @@ export default function CobroPage() {
       toast.success('Recibo emitido correctamente')
       setIssuedReceipt(receipt)
     },
-    onError: () => toast.error('Error al emitir recibo'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al emitir recibo')),
   })
 
   async function onSubmit(values: FormValues) {
+    const lineTotal = toNum(subtotal)
+    const selectedMethod = paymentMethods.find(
+      (m) => String(m.id) === String(values.paymentMethodId),
+    )
+    if (selectedMethod?.name?.toLowerCase().includes('efectivo')) {
+      const received = toNum(values.amountReceived)
+      if (received < lineTotal) {
+        setError('amountReceived', { message: `Monto insuficiente (total: ${formatCurrency(lineTotal)})` })
+        return
+      }
+    }
     await createMutation.mutateAsync({
       originType: values.originType as ReceiptOriginType,
       originId: originId ? Number(originId) : undefined,
@@ -176,15 +189,15 @@ export default function CobroPage() {
       contributorDocument: values.contributorDocument || undefined,
       contributorAddress: values.contributorAddress || undefined,
       paymentMethodId: Number(values.paymentMethodId),
-      total: subtotal,
-      amountReceived: values.amountReceived ? Number(values.amountReceived) : undefined,
-      changeAmount: change > 0 ? change : undefined,
+      total: lineTotal,
+      amountReceived: values.amountReceived ? toNum(values.amountReceived) : undefined,
+      changeAmount: change > 0 ? toNum(change) : undefined,
       paymentReference: values.paymentReference || undefined,
       lines: values.lines.map((l) => ({
         description: l.description,
-        quantity: Number(l.quantity),
-        unitPrice: Number(l.unitPrice),
-        amount: Number(l.total),
+        quantity: toNum(l.quantity) || 1,
+        unitPrice: toNum(l.unitPrice),
+        total: toNum(l.total),
       })),
     })
   }
@@ -356,6 +369,7 @@ export default function CobroPage() {
                   type="number"
                   step="0.01"
                   min="0"
+                  error={errors.amountReceived?.message}
                   {...register('amountReceived')}
                 />
               )}
@@ -432,11 +446,13 @@ export default function CobroPage() {
               </div>
             </div>
 
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: 10, lineHeight: 1.4 }}>
+              Nota: los recibos no generan movimientos en Caja automáticamente. Si necesitas registrar el ingreso en caja, hazlo manualmente desde el módulo de Caja.
+            </p>
+
             {createMutation.isError && (
               <div className={styles.errorBox} style={{ marginTop: 12 }}>
-                {createMutation.error instanceof Error
-                  ? createMutation.error.message
-                  : 'Error al emitir'}
+                {getApiErrorMessage(createMutation.error, 'Error al emitir el recibo')}
               </div>
             )}
 

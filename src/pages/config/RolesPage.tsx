@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import type { Role, Permission } from '@/types/roles'
 import styles from './RolesPage.module.css'
@@ -50,7 +51,7 @@ export default function RolesPage() {
       reset()
       toast.success('Rol creado correctamente')
     },
-    onError: () => toast.error('Error al crear rol'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al crear rol')),
   })
 
   const updateMutation = useMutation({
@@ -62,7 +63,7 @@ export default function RolesPage() {
       reset()
       toast.success('Rol actualizado correctamente')
     },
-    onError: () => toast.error('Error al actualizar rol'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar rol')),
   })
 
   const assignPermsMutation = useMutation({
@@ -73,12 +74,13 @@ export default function RolesPage() {
       setPermRole(null)
       toast.success('Permisos actualizados correctamente')
     },
-    onError: () => toast.error('Error al actualizar permisos'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar permisos')),
   })
 
   function openPerms(role: Role) {
     setPermRole(role)
-    setSelectedPerms((role.permissions ?? []).map((p) => p.id))
+    const perms = Array.isArray(role.permissions) ? role.permissions : []
+    setSelectedPerms(perms.map((p) => p.id))
   }
 
   function togglePerm(id: number) {
@@ -103,7 +105,7 @@ export default function RolesPage() {
       key: 'permissions',
       header: 'Permisos',
       render: (r: Role) => (
-        <Badge variant="blue">{(r.permissions ?? []).length} permisos</Badge>
+        <Badge variant="blue">{Array.isArray(r.permissions) ? r.permissions.length : 0} permisos</Badge>
       ),
       width: '110px',
     },
@@ -146,7 +148,7 @@ export default function RolesPage() {
       <Card padding="flush">
         {isLoading ? (
           <Loading />
-        ) : roles.length === 0 ? (
+        ) : !Array.isArray(roles) || roles.length === 0 ? (
           <EmptyState icon="🔑" title="Sin roles" description="Crea el primer rol del sistema." />
         ) : (
           <Table columns={columns} data={roles} keyExtractor={(r) => r.id} />
@@ -227,11 +229,11 @@ export default function RolesPage() {
           </>
         }
       >
-        {permGroups.map((group) => (
+        {(Array.isArray(permGroups) ? permGroups : []).map((group) => (
           <div key={group.module} className={styles.permGroup}>
             <div className={styles.permGroupTitle}>{group.module}</div>
             <div className={styles.permGrid}>
-              {group.permissions.map((p: Permission) => (
+              {(Array.isArray(group.permissions) ? group.permissions : []).map((p: Permission) => (
                 <label key={p.id} className={styles.permItem}>
                   <input
                     type="checkbox"

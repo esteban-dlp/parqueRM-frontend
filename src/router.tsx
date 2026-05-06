@@ -11,6 +11,7 @@ import { AuthLayout } from '@/layouts/AuthLayout'
 import { ProtectedRoute } from '@/components/shared/ProtectedRoute'
 import { Loading } from '@/components/ui/Loading'
 import { PERMISSIONS } from '@/utils/permissions'
+import ErrorPage from '@/pages/ErrorPage'
 
 // ─── Carga diferida de páginas ────────────────────────────────────────────────
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
   // ─── Rutas públicas (solo login) ──────────────────────────────────────────
   {
     element: <AuthLayout />,
+    errorElement: <ErrorPage />,
     children: [
       {
         path: '/login',
@@ -57,6 +59,7 @@ export const router = createBrowserRouter([
         <AppLayout />
       </ProtectedRoute>
     ),
+    errorElement: <ErrorPage />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       {

@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import type { CatalogItem, CreateCatalogItemDto } from '@/types/catalogs'
 import styles from './CatalogsPage.module.css'
@@ -69,7 +70,7 @@ export default function CatalogsPage() {
       toast.success('Elemento creado correctamente')
       handleClose()
     },
-    onError: () => toast.error('Error al crear elemento'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al crear elemento')),
   })
 
   const updateMutation = useMutation({
@@ -80,7 +81,7 @@ export default function CatalogsPage() {
       toast.success('Elemento actualizado correctamente')
       handleClose()
     },
-    onError: () => toast.error('Error al actualizar elemento'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar elemento')),
   })
 
   const toggleMutation = useMutation({

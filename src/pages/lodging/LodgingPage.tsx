@@ -22,8 +22,9 @@ import { PaginationBar } from '@/components/shared/PaginationBar'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
-import { formatCurrency, formatDate, formatDateTime, todayISO } from '@/utils/formatters'
+import { formatCurrency, formatDate, formatDateTime, todayISO, toNum } from '@/utils/formatters'
 import type { LodgingRecord } from '@/types/lodging'
 import type { PaginatedMeta } from '@/types/api'
 import styles from './LodgingPage.module.css'
@@ -101,7 +102,7 @@ export default function LodgingPage() {
     if (resolvedTariff && !editId) {
       const nights = Number(watchNights) || 1
       setValue('appliedRate', resolvedTariff.amount)
-      setValue('totalAmount', parseFloat((resolvedTariff.amount * nights).toFixed(2)))
+      setValue('totalAmount', parseFloat((toNum(resolvedTariff.amount) * nights).toFixed(2)))
     }
   }, [resolvedTariff, watchNights, editId, setValue])
 
@@ -133,7 +134,7 @@ export default function LodgingPage() {
       toast.success('Hospedaje registrado correctamente')
       handleClose()
     },
-    onError: () => toast.error('Error al registrar hospedaje'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al registrar hospedaje')),
   })
 
   const updateMutation = useMutation({
@@ -145,7 +146,7 @@ export default function LodgingPage() {
       toast.success('Hospedaje actualizado correctamente')
       handleClose()
     },
-    onError: () => toast.error('Error al actualizar hospedaje'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar hospedaje')),
   })
 
   function handleClose() {
@@ -327,9 +328,7 @@ export default function LodgingPage() {
       >
         {(createMutation.isError || updateMutation.isError) && (
           <div className={styles.errorBox}>
-            {(createMutation.error ?? updateMutation.error) instanceof Error
-              ? ((createMutation.error ?? updateMutation.error) as Error).message
-              : 'Error al guardar'}
+            {getApiErrorMessage(createMutation.error ?? updateMutation.error, 'Error al guardar')}
           </div>
         )}
         <div className={styles.formGrid2}>

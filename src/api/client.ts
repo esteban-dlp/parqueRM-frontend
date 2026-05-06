@@ -140,3 +140,24 @@ export function unwrap<T>(response: AxiosResponse<ApiResponse<T>>): T {
   }
   return body.data as T
 }
+
+/**
+ * Extrae el mensaje de error de un error de Axios o de la API.
+ * Intenta leer el mensaje del body del backend antes de usar el mensaje de Axios.
+ */
+export function getApiErrorMessage(error: unknown, fallback = 'Error de servidor'): string {
+  if (!error) return fallback
+  if (typeof error === 'object' && error !== null) {
+    const axiosErr = error as {
+      response?: { data?: { message?: unknown; errors?: unknown } }
+      message?: string
+    }
+    const backendMsg = axiosErr.response?.data?.message
+    if (backendMsg) {
+      if (Array.isArray(backendMsg)) return backendMsg.join('. ')
+      if (typeof backendMsg === 'string') return backendMsg
+    }
+    if (axiosErr.message && axiosErr.message !== 'Network Error') return axiosErr.message
+  }
+  return fallback
+}

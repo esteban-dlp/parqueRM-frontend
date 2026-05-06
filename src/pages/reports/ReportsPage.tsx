@@ -9,15 +9,37 @@ import { Loading } from '@/components/ui/Loading'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
+import { useToast } from '@/hooks/useToast'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDate, todayISO } from '@/utils/formatters'
 import type { ReportVisitorRow, GeneralReport } from '@/types/reports'
 import styles from './ReportsPage.module.css'
 
+function buildCsv(rows: Record<string, unknown>[], cols: { key: string; header: string }[]): string {
+  const escape = (v: unknown) => {
+    const s = v == null ? '' : String(v)
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const header = cols.map((c) => escape(c.header)).join(',')
+  const body = rows.map((r) => cols.map((c) => escape(r[c.key])).join(',')).join('\n')
+  return `﻿${header}\n${body}`
+}
+
+function downloadCsv(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 type TabKey = 'general' | 'visitors' | 'income'
 
 export default function ReportsPage() {
   const canExport = usePermission(PERMISSIONS.REPORTES_EXPORT)
+  const toast = useToast()
   const [tab, setTab] = useState<TabKey>('general')
 
   const today = todayISO()
@@ -44,31 +66,51 @@ export default function ReportsPage() {
     enabled: tab === 'income',
   })
 
-  function downloadBlob(blob: Blob, filename: string) {
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
+  function handleExportExcel() {
+    if (tab === 'visitors') {
+      const rows = (visitorsData?.data ?? []) as unknown as Record<string, unknown>[]
+      if (!rows.length) { toast.error('No hay datos para exportar'); return }
+      const cols = [
+        { key: 'ticketNumber', header: 'Ticket' },
+        { key: 'fullName', header: 'Nombre' },
+        { key: 'categoryName', header: 'Categoría' },
+        { key: 'quantity', header: 'Cantidad' },
+        { key: 'totalAmount', header: 'Total Q' },
+        { key: 'checkInAt', header: 'Ingreso' },
+        { key: 'checkOutAt', header: 'Salida' },
+      ]
+      downloadCsv(buildCsv(rows, cols), `visitantes-${from}.csv`)
+    } else if (tab === 'income') {
+      const rows = (incomeData?.data ?? []) as Record<string, unknown>[]
+      if (!rows.length) { toast.error('No hay datos para exportar'); return }
+      const flat = rows.map((r) => ({
+        concepto: (r.concept as { name?: string } | null)?.name ?? String(r.conceptName ?? ''),
+        metodo: (r.paymentMethod as { name?: string } | null)?.name ?? String(r.paymentMethodName ?? ''),
+        monto: r.amount ?? r.total ?? 0,
+      }))
+      downloadCsv(buildCsv(flat, [
+        { key: 'concepto', header: 'Concepto' },
+        { key: 'metodo', header: 'Método de pago' },
+        { key: 'monto', header: 'Monto Q' },
+      ]), `ingresos-${from}.csv`)
+    } else if (tab === 'general' && general) {
+      const rows = [
+        { campo: 'Visitantes', valor: general.totalVisitors },
+        { campo: 'Vehículos', valor: general.totalVehicles },
+        { campo: 'Hospedaje', valor: general.totalLodging },
+        { campo: 'Ingresos (Q)', valor: general.totalIncome },
+        { campo: 'Egresos (Q)', valor: general.totalExpense },
+        { campo: 'Neto (Q)', valor: general.net },
+      ]
+      downloadCsv(buildCsv(rows, [
+        { key: 'campo', header: 'Indicador' },
+        { key: 'valor', header: 'Valor' },
+      ]), `resumen-${from}.csv`)
+    }
   }
 
-  async function handleExportExcel() {
-    const res = tab === 'visitors'
-      ? await reportsApi.exportVisitorsExcel(params)
-      : tab === 'income'
-        ? await reportsApi.exportIncomeExcel(params)
-        : await reportsApi.exportGeneralExcel(params)
-    downloadBlob(res.data as Blob, `reporte-${tab}-${from}.xlsx`)
-  }
-
-  async function handleExportPdf() {
-    const res = tab === 'visitors'
-      ? await reportsApi.exportVisitorsPdf(params)
-      : tab === 'income'
-        ? await reportsApi.exportIncomePdf(params)
-        : await reportsApi.exportGeneralPdf(params)
-    downloadBlob(res.data as Blob, `reporte-${tab}-${from}.pdf`)
+  function handleExportPdf() {
+    toast.error('La exportación a PDF no está disponible. Usa la opción CSV/Excel.')
   }
 
   const visitorColumns = [
@@ -99,17 +141,23 @@ export default function ReportsPage() {
     {
       key: 'concept',
       header: 'Concepto',
-      render: (r: Record<string, unknown>) => String(r.conceptName ?? r.concept ?? '—'),
+      render: (r: Record<string, unknown>) => {
+        const c = r.concept as { name?: string } | null | undefined
+        return String(c?.name ?? r.conceptName ?? '—')
+      },
     },
     {
       key: 'paymentMethod',
       header: 'Método',
-      render: (r: Record<string, unknown>) => String(r.paymentMethodName ?? r.paymentMethod ?? '—'),
+      render: (r: Record<string, unknown>) => {
+        const pm = r.paymentMethod as { name?: string } | null | undefined
+        return String(pm?.name ?? r.paymentMethodName ?? '—')
+      },
     },
     {
-      key: 'total',
-      header: 'Total',
-      render: (r: Record<string, unknown>) => formatCurrency(Number(r.total ?? r.amount ?? 0)),
+      key: 'amount',
+      header: 'Monto',
+      render: (r: Record<string, unknown>) => formatCurrency(Number(r.amount ?? r.total ?? 0)),
     },
   ]
 
@@ -194,59 +242,52 @@ export default function ReportsPage() {
 }
 
 function GeneralReportView({ report }: { report: GeneralReport }) {
+  const hasData = report.totalVisitors > 0 || report.totalVehicles > 0 || report.totalLodging > 0 || report.totalIncome > 0
+  if (!hasData) {
+    return <EmptyState icon="📊" title="Sin datos" description="No hay datos en el rango seleccionado." />
+  }
   return (
     <div className={styles.generalGrid}>
-      {report.visitors && report.visitors.length > 0 && (
-        <Card>
-          <div className={styles.sectionTitle}>Visitantes por categoría</div>
-          {report.visitors.map((v) => (
-            <div key={v.categoryName} className={styles.reportRow}>
-              <span>{v.categoryName}</span>
-              <span className={styles.reportRowRight}>
-                <span className={styles.reportCount}>{v.count}</span>
-                <span>{formatCurrency(v.total)}</span>
-              </span>
-            </div>
-          ))}
-          {report.total != null && (
-            <div className={[styles.reportRow, styles.reportRowTotal].join(' ')}>
-              <span>Total</span>
-              <span>{formatCurrency(report.total)}</span>
-            </div>
-          )}
-        </Card>
-      )}
+      <Card>
+        <div className={styles.sectionTitle}>Registros del período</div>
+        <div className={styles.reportRow}>
+          <span>Visitantes</span>
+          <span className={styles.reportRowRight}>
+            <span className={styles.reportCount}>{report.totalVisitors}</span>
+          </span>
+        </div>
+        <div className={styles.reportRow}>
+          <span>Vehículos</span>
+          <span className={styles.reportRowRight}>
+            <span className={styles.reportCount}>{report.totalVehicles}</span>
+          </span>
+        </div>
+        <div className={styles.reportRow}>
+          <span>Hospedaje</span>
+          <span className={styles.reportRowRight}>
+            <span className={styles.reportCount}>{report.totalLodging}</span>
+          </span>
+        </div>
+      </Card>
 
-      {report.vehicles && report.vehicles.length > 0 && (
-        <Card>
-          <div className={styles.sectionTitle}>Vehículos por tipo</div>
-          {report.vehicles.map((v) => (
-            <div key={v.typeName} className={styles.reportRow}>
-              <span>{v.typeName}</span>
-              <span className={styles.reportRowRight}>
-                <span className={styles.reportCount}>{v.count}</span>
-                <span>{formatCurrency(v.total)}</span>
-              </span>
-            </div>
-          ))}
-        </Card>
-      )}
-
-      {report.income && report.income.length > 0 && (
-        <Card>
-          <div className={styles.sectionTitle}>Ingresos por concepto</div>
-          {report.income.map((i) => (
-            <div key={i.conceptName} className={styles.reportRow}>
-              <span>{i.conceptName}</span>
-              <span>{formatCurrency(i.total)}</span>
-            </div>
-          ))}
-        </Card>
-      )}
-
-      {!report.visitors?.length && !report.vehicles?.length && !report.income?.length && (
-        <EmptyState icon="📊" title="Sin datos" description="No hay datos en el rango seleccionado." />
-      )}
+      <Card>
+        <div className={styles.sectionTitle}>Resumen financiero (movimientos manuales)</div>
+        <div className={styles.reportRow}>
+          <span>Ingresos</span>
+          <span style={{ color: 'var(--success)', fontWeight: 500 }}>{formatCurrency(report.totalIncome)}</span>
+        </div>
+        <div className={styles.reportRow}>
+          <span>Egresos</span>
+          <span style={{ color: 'var(--danger)', fontWeight: 500 }}>{formatCurrency(report.totalExpense)}</span>
+        </div>
+        <div className={[styles.reportRow, styles.reportRowTotal].join(' ')}>
+          <span>Neto</span>
+          <span>{formatCurrency(report.net)}</span>
+        </div>
+        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: 8 }}>
+          Los recibos de cobro no se incluyen aquí — solo movimientos de Caja.
+        </p>
+      </Card>
     </div>
   )
 }

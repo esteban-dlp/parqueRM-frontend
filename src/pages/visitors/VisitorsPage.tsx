@@ -23,8 +23,9 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
-import { formatCurrency, formatDateTime, todayISO } from '@/utils/formatters'
+import { formatCurrency, formatDateTime, todayISO, toNum } from '@/utils/formatters'
 import type { VisitorRecord } from '@/types/visitors'
 import type { PaginatedMeta } from '@/types/api'
 import styles from './VisitorsPage.module.css'
@@ -208,7 +209,7 @@ export default function VisitorsPage() {
   const handleQtyOrRateChange = () => {
     const qty = Number(watch('quantity') ?? 1)
     const rate = Number(watch('appliedRate') ?? 0)
-    setValue('totalAmount', parseFloat((qty * rate).toFixed(2)))
+    setValue('totalAmount', parseFloat((toNum(qty) * toNum(rate)).toFixed(2)))
   }
 
   const createMutation = useMutation({
@@ -219,7 +220,7 @@ export default function VisitorsPage() {
       toast.success('Visitante registrado correctamente')
       handleClose()
     },
-    onError: () => toast.error('Error al registrar visitante'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al registrar visitante')),
   })
 
   const updateMutation = useMutation({
@@ -231,7 +232,7 @@ export default function VisitorsPage() {
       toast.success('Visitante actualizado correctamente')
       handleClose()
     },
-    onError: () => toast.error('Error al actualizar visitante'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar visitante')),
   })
 
   const checkoutMutation = useMutation({
@@ -240,7 +241,7 @@ export default function VisitorsPage() {
       qc.invalidateQueries({ queryKey: ['visitors'] })
       toast.success('Salida registrada')
     },
-    onError: () => toast.error('Error al registrar salida'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al registrar salida')),
   })
 
   function handleClose() {
@@ -456,9 +457,7 @@ export default function VisitorsPage() {
               marginBottom: 12,
             }}
           >
-            {(createMutation.error ?? updateMutation.error) instanceof Error
-              ? ((createMutation.error ?? updateMutation.error) as Error).message
-              : 'Error al guardar'}
+            {getApiErrorMessage(createMutation.error ?? updateMutation.error, 'Error al guardar')}
           </div>
         )}
 

@@ -1,7 +1,7 @@
 export interface ParkConfig {
   id: number
-  name: string
-  subtitle: string | null
+  parkName: string
+  parkSubtitle: string | null
   sigapCode: string | null
   department: string | null
   municipality: string | null
@@ -9,14 +9,15 @@ export interface ParkConfig {
   phone: string | null
   email: string | null
   logoUrl: string | null
+  systemLanUrl: string | null
   maxCapacity: number
-  lanUrl: string | null
-  updatedAt: string
+  createdAt: string
+  updatedAt: string | null
 }
 
 export interface UpdateParkConfigDto {
-  name?: string
-  subtitle?: string
+  parkName?: string
+  parkSubtitle?: string
   sigapCode?: string
   department?: string
   municipality?: string
@@ -24,6 +25,6 @@ export interface UpdateParkConfigDto {
   phone?: string
   email?: string
   logoUrl?: string
+  systemLanUrl?: string
   maxCapacity?: number
-  lanUrl?: string
 }
