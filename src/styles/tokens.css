@@ -1,0 +1,107 @@
+/**
+ * Design tokens de ParqueRM.
+ * Todos los valores visuales del sistema están aquí.
+ * Para modificar colores, espaciado o tipografía: editar solo este archivo.
+ * Basado en mockup_sigap.html y mockup_cobro_sigap.html.
+ */
+:root {
+  /* ─── Sidebar ─── */
+  --sidebar-bg: #1a3a2a;
+  --sidebar-hover: rgba(255, 255, 255, 0.07);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.12);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-text: rgba(255, 255, 255, 0.6);
+  --sidebar-text-active: #ffffff;
+  --sidebar-text-muted: rgba(255, 255, 255, 0.3);
+  --sidebar-label: rgba(255, 255, 255, 0.3);
+  --sidebar-width: 230px;
+
+  /* ─── Acento ─── */
+  --accent: #4ade80;
+  --accent-dim: rgba(74, 222, 128, 0.2);
+
+  /* ─── Superficies ─── */
+  --bg: #f5f5f3;
+  --surface: #ffffff;
+  --surface-raised: #f5f5f3;
+
+  /* ─── Bordes ─── */
+  --border: #e5e5e0;
+  --border-medium: #cccccc;
+
+  /* ─── Texto ─── */
+  --text: #1a1a1a;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+
+  /* ─── Color primario (botones, highlights) ─── */
+  --primary: #1a3a2a;
+  --primary-hover: #1f4a34;
+  --primary-text: #ffffff;
+
+  /* ─── Estado success ─── */
+  --success: #166534;
+  --success-light: #f0fdf4;
+  --success-border: #86efac;
+  --success-text: #166534;
+
+  /* ─── Estado danger ─── */
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --danger-border: #fca5a5;
+  --danger-text: #991b1b;
+
+  /* ─── Estado warning ─── */
+  --warning: #d97706;
+  --warning-light: #fef3c7;
+  --warning-border: #fcd34d;
+  --warning-text: #92400e;
+
+  /* ─── Badges ─── */
+  --badge-green-bg: #dcfce7;
+  --badge-green-text: #166534;
+  --badge-blue-bg: #dbeafe;
+  --badge-blue-text: #1e40af;
+  --badge-amber-bg: #fef3c7;
+  --badge-amber-text: #92400e;
+  --badge-teal-bg: #ccfbf1;
+  --badge-teal-text: #115e59;
+  --badge-purple-bg: #ede9fe;
+  --badge-purple-text: #5b21b6;
+  --badge-red-bg: #fee2e2;
+  --badge-red-text: #991b1b;
+  --badge-gray-bg: #f5f5f3;
+  --badge-gray-text: #666666;
+
+  /* ─── Tipografía ─── */
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --text-xs: 10.5px;
+  --text-sm: 11.5px;
+  --text-base: 12.5px;
+  --text-md: 13px;
+  --text-lg: 14px;
+  --text-xl: 16px;
+  --text-2xl: 20px;
+
+  /* ─── Espaciado ─── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* ─── Radios ─── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* ─── Sombras ─── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* ─── Layout ─── */
+  --topbar-height: 52px;
+}

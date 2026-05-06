@@ -1,0 +1,9 @@
+.card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+}
+
+.flush { padding: 0; }
+.sm    { padding: 12px 14px; }

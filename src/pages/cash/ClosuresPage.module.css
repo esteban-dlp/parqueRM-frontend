@@ -1,0 +1,91 @@
+.previewCard {
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 0.5px solid var(--border);
+}
+
+.previewTitle {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 12px;
+}
+
+.previewRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.previewItem { display: flex; flex-direction: column; gap: 2px; }
+.previewLabel { font-size: var(--text-sm); color: var(--text-secondary); }
+.previewValue { font-size: 18px; font-weight: 500; color: var(--text); }
+.valueIn  { color: var(--success) !important; }
+.valueOut { color: var(--danger) !important; }
+
+.modalSummary {
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.modalSummaryRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.modalSummaryTotal {
+  border-top: 0.5px solid var(--border);
+  padding-top: 6px;
+  margin-top: 6px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.detailTotal {
+  border-top: 0.5px solid var(--border);
+  padding-top: 8px;
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.detailNotes {
+  margin-top: 12px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.detailSectionLabel {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.detailSubRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-base);
+  padding: 3px 0;
+  color: var(--text);
+}

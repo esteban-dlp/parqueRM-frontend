@@ -1,0 +1,27 @@
+.permGroup { margin-bottom: 18px; }
+
+.permGroupTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.permGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.permItem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-base);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.permItem input { cursor: pointer; }

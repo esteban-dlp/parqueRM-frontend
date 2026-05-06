@@ -1,0 +1,115 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.sumCard {
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+
+.sumLabel { font-size: var(--text-sm); color: var(--text-secondary); }
+.sumValue { font-size: 20px; font-weight: 500; color: var(--text); }
+
+/* Form */
+.formGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.formGrid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.formGrid4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.divider {
+  border-top: 0.5px solid var(--border);
+  margin: 14px 0;
+  padding-top: 14px;
+}
+
+.sectionLabel {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.chipGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.chip {
+  border: 0.5px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-base);
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  font-family: var(--font);
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.chip.selected {
+  border-color: var(--primary);
+  background: var(--success-light);
+}
+
+.ticketBox {
+  background: var(--success-light);
+  border: 0.5px solid var(--success-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  font-size: var(--text-base);
+}
+
+.ticketRow {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 3px;
+  color: var(--text-secondary);
+}
+
+.ticketRow span:last-child { color: var(--text); font-weight: 500; }
+
+.ticketTotal {
+  border-top: 0.5px solid var(--success-border);
+  margin-top: 7px;
+  padding-top: 7px;
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--success);
+  display: flex;
+  justify-content: space-between;
+}

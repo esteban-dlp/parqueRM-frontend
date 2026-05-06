@@ -1,0 +1,36 @@
+.filterRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.detailMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  padding: 4px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.detailMeta span:last-child { color: var(--text); }
+
+.jsonLabel {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.jsonBox {
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  font-size: 12px;
+  overflow-x: auto;
+  max-height: 200px;
+  color: var(--text);
+  font-family: monospace;
+}

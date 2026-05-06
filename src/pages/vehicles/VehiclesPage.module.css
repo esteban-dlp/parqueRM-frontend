@@ -1,0 +1,32 @@
+.summaryRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.sumCard {
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+
+.sumLabel { font-size: var(--text-sm); color: var(--text-secondary); }
+.sumValue { font-size: 20px; font-weight: 500; color: var(--text); }
+
+.formGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.errorBox {
+  background: var(--danger-light);
+  border: 0.5px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-size: var(--text-sm);
+  color: var(--danger-text);
+  margin-bottom: 12px;
+}

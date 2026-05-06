@@ -1,0 +1,193 @@
+.cobroLayout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .cobroLayout { grid-template-columns: 1fr; }
+}
+
+.cobroForm { display: flex; flex-direction: column; }
+.cobroSummary { position: sticky; top: 16px; }
+
+.sectionLabel {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 10px;
+}
+
+.formGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.lineRow {
+  display: grid;
+  grid-template-columns: 1fr 72px 100px 100px 28px;
+  gap: 6px;
+  align-items: end;
+  margin-bottom: 6px;
+}
+
+.lineDesc {}
+.lineQty {}
+.linePrice {}
+.lineTotal {}
+
+.removeLine {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 0;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.removeLine:hover { color: var(--danger); }
+
+/* Summary panel */
+.summaryLines { display: flex; flex-direction: column; gap: 4px; }
+
+.summaryLine {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.summaryLineDesc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+  color: var(--text);
+}
+
+.summaryDivider {
+  border-top: 0.5px solid var(--border);
+  margin: 10px 0;
+}
+
+.summaryTotal {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.summaryChange { color: var(--success); font-weight: 500; }
+
+.conceptSuggest { margin-top: 10px; }
+
+.conceptChip {
+  display: inline-block;
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
+  font-size: var(--text-sm);
+  color: var(--text);
+  cursor: pointer;
+  margin: 0 4px 4px 0;
+  font-family: var(--font);
+  transition: background 0.1s;
+}
+
+.conceptChip:hover { background: var(--success-light); border-color: var(--primary); }
+
+.originBadge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* Receipt success screen */
+.successBox {
+  text-align: center;
+  padding: 24px 0 16px;
+}
+
+.successIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--success-light);
+  color: var(--success);
+  font-size: 22px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+}
+
+.successTitle {
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.successNumber {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.receiptPreview {
+  background: var(--success-light);
+  border: 0.5px solid var(--success-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-top: 14px;
+}
+
+.receiptRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.receiptRow span:last-child { color: var(--text); font-weight: 500; }
+
+.receiptTotal {
+  border-top: 0.5px solid var(--success-border);
+  margin-top: 8px;
+  padding-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--success);
+}
+
+.errorBox {
+  background: var(--danger-light);
+  border: 0.5px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-size: var(--text-sm);
+  color: var(--danger-text);
+}

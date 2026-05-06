@@ -1,0 +1,89 @@
+.filterRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.exportBtns {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  align-self: flex-end;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  margin-bottom: 14px;
+  width: fit-content;
+}
+
+.tab {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  padding: 6px 16px;
+  border-radius: calc(var(--radius-md) - 2px);
+  transition: background 0.1s, color 0.1s;
+}
+
+.tab:hover { color: var(--text); }
+
+.tabActive {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.generalGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.sectionTitle {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.reportRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 0.5px solid var(--border);
+  font-size: var(--text-base);
+  color: var(--text);
+}
+
+.reportRow:last-child { border-bottom: none; }
+
+.reportRowRight {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.reportCount {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  min-width: 24px;
+  text-align: right;
+}
+
+.reportRowTotal {
+  font-weight: 600;
+  border-top: 1px solid var(--border-medium);
+  margin-top: 4px;
+  padding-top: 8px;
+}
