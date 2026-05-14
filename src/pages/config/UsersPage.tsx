@@ -16,6 +16,7 @@ import { PaginationBar } from '@/components/shared/PaginationBar'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatDateTime } from '@/utils/formatters'
 import type { User } from '@/types/users'
@@ -42,7 +43,7 @@ export default function UsersPage() {
     staleTime: 10 * 60 * 1000,
   })
 
-  const { register: regCreate, handleSubmit: subCreate, reset: resetCreate, formState: { isSubmitting: subm } } =
+  const { register: regCreate, handleSubmit: subCreate, reset: resetCreate, formState: { isSubmitting: subm, errors: errCreate } } =
     useForm<{ username: string; fullName: string; email?: string; password: string; roleId: number }>()
 
   const { register: regEdit, handleSubmit: subEdit, reset: resetEdit } =
@@ -59,7 +60,7 @@ export default function UsersPage() {
       resetCreate()
       toast.success('Usuario creado correctamente')
     },
-    onError: () => toast.error('Error al crear usuario'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al crear usuario')),
   })
 
   const updateMutation = useMutation({
@@ -71,7 +72,7 @@ export default function UsersPage() {
       resetEdit()
       toast.success('Usuario actualizado correctamente')
     },
-    onError: () => toast.error('Error al actualizar usuario'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar usuario')),
   })
 
   const toggleMutation = useMutation({
@@ -80,7 +81,7 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ['users'] })
       toast.success('Estado del usuario actualizado')
     },
-    onError: () => toast.error('Error al cambiar estado del usuario'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al cambiar estado del usuario')),
   })
 
   const pwdMutation = useMutation({
@@ -91,7 +92,7 @@ export default function UsersPage() {
       resetPwd()
       toast.success('Contraseña actualizada correctamente')
     },
-    onError: () => toast.error('Error al actualizar contraseña'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar contraseña')),
   })
 
   function openEdit(u: User) {
@@ -201,10 +202,15 @@ export default function UsersPage() {
         }
       >
         <div className={styles.formGrid2}>
-          <Input label="Usuario *" {...regCreate('username', { required: true })} />
-          <Input label="Contraseña *" type="password" {...regCreate('password', { required: true })} />
+          <Input label="Usuario *" {...regCreate('username', { required: 'Usuario requerido' })} error={errCreate.username?.message} />
+          <Input
+            label="Contraseña *"
+            type="password"
+            {...regCreate('password', { required: 'Contraseña requerida', minLength: { value: 8, message: 'Mínimo 8 caracteres' } })}
+            error={errCreate.password?.message}
+          />
         </div>
-        <Input label="Nombre completo *" {...regCreate('fullName', { required: true })} />
+        <Input label="Nombre completo *" {...regCreate('fullName', { required: 'Nombre requerido' })} error={errCreate.fullName?.message} />
         <div className={styles.formGrid2} style={{ marginTop: 10 }}>
           <Input label="Email" type="email" {...regCreate('email')} />
           <Select

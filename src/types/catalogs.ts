@@ -55,8 +55,9 @@ export interface TravelType extends CatalogItem {}
 /** Servicio del parque (Visitantes, Vehículos, Hospedaje, etc.). */
 export interface ParkService {
   id: number
+  code: string
   name: string
-  isActive: boolean
+  isEnabled: boolean
 }
 
 /** DTO para crear o actualizar cualquier catálogo genérico. */

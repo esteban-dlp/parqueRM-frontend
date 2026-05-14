@@ -13,6 +13,7 @@ import { PaginationBar } from '@/components/shared/PaginationBar'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDateTime } from '@/utils/formatters'
 import type { CashClosure } from '@/types/cash'
@@ -50,7 +51,7 @@ export default function ClosuresPage() {
       reset()
       toast.success('Cierre de caja realizado correctamente')
     },
-    onError: () => toast.error('Error al realizar cierre de caja'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al realizar cierre de caja')),
   })
 
   async function onSubmit(values: { observations?: string }) {

@@ -43,11 +43,10 @@ export interface Receipt {
 }
 
 export interface CreateReceiptLineDto {
-  conceptId?: number
+  description: string
   quantity?: number
   unitPrice: number
-  amount?: number
-  description?: string
+  total: number
 }
 
 export interface CreateReceiptDto {
@@ -66,7 +65,7 @@ export interface CreateReceiptDto {
 }
 
 export interface CancelReceiptDto {
-  reason: string
+  cancelReason: string
 }
 
 export interface ReceiptQueryParams extends PaginationParams {

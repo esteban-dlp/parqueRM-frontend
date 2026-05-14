@@ -19,7 +19,7 @@ export function useParkConfig() {
 
   return {
     config: data,
-    parkName: data?.name ?? FALLBACK_NAME,
+    parkName: data?.parkName ?? FALLBACK_NAME,
     isLoading,
   }
 }

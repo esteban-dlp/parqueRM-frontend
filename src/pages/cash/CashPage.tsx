@@ -20,6 +20,7 @@ import { PaginationBar } from '@/components/shared/PaginationBar'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDateTime } from '@/utils/formatters'
 import type { FinancialMovement } from '@/types/cash'
@@ -89,7 +90,7 @@ export default function CashPage() {
   })
 
   const { register: registerCancel, handleSubmit: handleCancelSubmit, reset: resetCancel } =
-    useForm<{ reason: string }>()
+    useForm<{ cancelReason: string }>()
 
   const watchType = watchCreate('movementType')
   const filteredConcepts = concepts.filter((c) => c.type === watchType)
@@ -102,19 +103,19 @@ export default function CashPage() {
       resetCreate()
       toast.success('Movimiento registrado correctamente')
     },
-    onError: () => toast.error('Error al registrar movimiento'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al registrar movimiento')),
   })
 
   const cancelMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      cashApi.cancelMovement(id, { reason }),
+    mutationFn: ({ id, cancelReason }: { id: number; cancelReason: string }) =>
+      cashApi.cancelMovement(id, { cancelReason }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['cash'] })
       setCancelId(null)
       resetCancel()
       toast.success('Movimiento anulado')
     },
-    onError: () => toast.error('Error al anular movimiento'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al anular movimiento')),
   })
 
   async function onCreateSubmit(values: CreateFormValues) {
@@ -128,9 +129,9 @@ export default function CashPage() {
     })
   }
 
-  async function onCancelSubmit(values: { reason: string }) {
+  async function onCancelSubmit(values: { cancelReason: string }) {
     if (!cancelId) return
-    await cancelMutation.mutateAsync({ id: cancelId, reason: values.reason })
+    await cancelMutation.mutateAsync({ id: cancelId, cancelReason: values.cancelReason })
   }
 
   const rows = data?.data ?? []
@@ -303,7 +304,7 @@ export default function CashPage() {
       >
         {createMutation.isError && (
           <div className={styles.errorBox}>
-            {createMutation.error instanceof Error ? createMutation.error.message : 'Error'}
+            {getApiErrorMessage(createMutation.error, 'Error al registrar movimiento')}
           </div>
         )}
         <div className={styles.formGrid2}>
@@ -362,7 +363,7 @@ export default function CashPage() {
           </>
         }
       >
-        <Input label="Motivo *" placeholder="Describe el motivo..." {...registerCancel('reason', { required: true })} />
+        <Input label="Motivo *" placeholder="Describe el motivo..." {...registerCancel('cancelReason', { required: true })} />
       </Modal>
     </div>
   )

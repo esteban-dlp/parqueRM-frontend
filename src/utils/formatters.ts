@@ -1,7 +1,16 @@
-/** Formatea un número como moneda guatemalteca (Q). */
-export function formatCurrency(amount: number | null | undefined): string {
-  if (amount == null) return 'Q 0.00'
-  return `Q ${amount.toFixed(2)}`
+/**
+ * Convierte cualquier valor (string, number, null, undefined) a number seguro.
+ * Los strings numéricos del backend ("25.00") se convierten correctamente.
+ */
+export function toNum(value: unknown): number {
+  if (value == null) return 0
+  const n = Number(value)
+  return isNaN(n) ? 0 : n
+}
+
+/** Formatea un valor como moneda guatemalteca (Q). Acepta string|number|null|undefined. */
+export function formatCurrency(amount: unknown): string {
+  return `Q ${toNum(amount).toFixed(2)}`
 }
 
 /** Formatea una fecha ISO a formato legible en español. */

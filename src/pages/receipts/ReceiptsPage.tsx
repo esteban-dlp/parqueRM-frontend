@@ -16,6 +16,7 @@ import { PaginationBar } from '@/components/shared/PaginationBar'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDateTime } from '@/utils/formatters'
 import type { Receipt } from '@/types/receipts'
@@ -54,26 +55,26 @@ export default function ReceiptsPage() {
   })
 
   const cancelMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      receiptsApi.cancel(id, { reason }),
+    mutationFn: ({ id, cancelReason }: { id: number; cancelReason: string }) =>
+      receiptsApi.cancel(id, { cancelReason }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['receipts'] })
       setCancelId(null)
       resetCancel()
       toast.success('Recibo anulado')
     },
-    onError: () => toast.error('Error al anular recibo'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al anular recibo')),
   })
 
   const printMutation = useMutation({
     mutationFn: (id: number) => receiptsApi.triggerPrint(id),
   })
 
-  const { register: registerCancel, handleSubmit: handleCancelSubmit, reset: resetCancel } = useForm<{ reason: string }>()
+  const { register: registerCancel, handleSubmit: handleCancelSubmit, reset: resetCancel } = useForm<{ cancelReason: string }>()
 
-  async function onCancelSubmit(values: { reason: string }) {
+  async function onCancelSubmit(values: { cancelReason: string }) {
     if (!cancelId) return
-    await cancelMutation.mutateAsync({ id: cancelId, reason: values.reason })
+    await cancelMutation.mutateAsync({ id: cancelId, cancelReason: values.cancelReason })
   }
 
   const rows = data?.data ?? []
@@ -226,7 +227,7 @@ export default function ReceiptsPage() {
         <Input
           label="Motivo de anulación *"
           placeholder="Describe el motivo..."
-          {...registerCancel('reason', { required: 'Ingresa el motivo' })}
+          {...registerCancel('cancelReason', { required: 'Ingresa el motivo' })}
         />
       </Modal>
     </div>

@@ -22,6 +22,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDateTime, todayISO } from '@/utils/formatters'
 import type { VehicleRecord } from '@/types/vehicles'
@@ -128,7 +129,7 @@ export default function VehiclesPage() {
       toast.success('Vehículo registrado correctamente')
       handleClose()
     },
-    onError: () => toast.error('Error al registrar vehículo'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al registrar vehículo')),
   })
 
   const updateMutation = useMutation({
@@ -139,7 +140,7 @@ export default function VehiclesPage() {
       toast.success('Vehículo actualizado correctamente')
       handleClose()
     },
-    onError: () => toast.error('Error al actualizar vehículo'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar vehículo')),
   })
 
   const checkoutMutation = useMutation({
@@ -148,7 +149,7 @@ export default function VehiclesPage() {
       qc.invalidateQueries({ queryKey: ['vehicles'] })
       toast.success('Salida registrada')
     },
-    onError: () => toast.error('Error al registrar salida'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al registrar salida')),
   })
 
   const enableExitMutation = useMutation({
@@ -157,7 +158,7 @@ export default function VehiclesPage() {
       qc.invalidateQueries({ queryKey: ['vehicles'] })
       toast.success('Salida habilitada')
     },
-    onError: () => toast.error('Error al habilitar salida'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al habilitar salida')),
   })
 
   function handleClose() {
@@ -361,9 +362,7 @@ export default function VehiclesPage() {
       >
         {(createMutation.isError || updateMutation.isError) && (
           <div className={styles.errorBox}>
-            {(createMutation.error ?? updateMutation.error) instanceof Error
-              ? ((createMutation.error ?? updateMutation.error) as Error).message
-              : 'Error al guardar'}
+            {getApiErrorMessage(createMutation.error ?? updateMutation.error, 'Error al guardar')}
           </div>
         )}
         <div className={styles.formGrid2}>

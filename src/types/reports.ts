@@ -28,9 +28,12 @@ export interface ReportSummaryByCategory {
   total: number
 }
 
+/** Estructura real del endpoint GET /reports/general */
 export interface GeneralReport {
-  visitors?: ReportSummaryByCategory[]
-  vehicles?: { typeName: string; count: number; total: number }[]
-  income?: { conceptName: string; total: number }[]
-  total?: number
+  totalVisitors: number
+  totalVehicles: number
+  totalLodging: number
+  totalIncome: number
+  totalExpense: number
+  net: number
 }

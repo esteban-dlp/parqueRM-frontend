@@ -6,7 +6,15 @@ export const rolesApi = {
   list: () =>
     apiClient
       .get<ApiResponse<Role[]>>('/roles')
-      .then(unwrap),
+      .then((r) => {
+        const raw = r.data.data
+        if (Array.isArray(raw)) return raw as Role[]
+        // Paginated format: { data: Role[], meta: {...} }
+        if (raw && Array.isArray((raw as Record<string, unknown>)['data'])) {
+          return (raw as Record<string, unknown>)['data'] as Role[]
+        }
+        return [] as Role[]
+      }),
 
   getById: (id: number) =>
     apiClient

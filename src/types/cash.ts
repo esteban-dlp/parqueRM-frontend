@@ -42,7 +42,7 @@ export interface CreateMovementDto {
 }
 
 export interface CancelMovementDto {
-  reason: string
+  cancelReason: string
 }
 
 export interface MovementQueryParams extends PaginationParams {

@@ -10,8 +10,21 @@ export const permissionsApi = {
 
   groupedByModule: () =>
     apiClient
-      .get<ApiResponse<PermissionGroup[]>>('/permissions/grouped-by-module')
-      .then(unwrap),
+      .get<ApiResponse<unknown>>('/permissions/grouped-by-module')
+      .then((r) => {
+        const raw = r.data.data
+        if (Array.isArray(raw)) return raw as PermissionGroup[]
+        // Backend returns { MODULE: Permission[] } — transform to array
+        if (raw && typeof raw === 'object') {
+          return Object.entries(raw as Record<string, Permission[]>).map(
+            ([module, permissions]) => ({
+              module,
+              permissions: Array.isArray(permissions) ? permissions : [],
+            }),
+          ) as PermissionGroup[]
+        }
+        return [] as PermissionGroup[]
+      }),
 
   getById: (id: number) =>
     apiClient
