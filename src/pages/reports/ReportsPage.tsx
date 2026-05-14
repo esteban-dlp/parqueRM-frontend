@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { reportsApi } from '@/api/reports.api'
+import { downloadReportPdf } from '@/utils/pdf'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -15,24 +16,12 @@ import { formatCurrency, formatDate, todayISO } from '@/utils/formatters'
 import type { ReportVisitorRow, GeneralReport } from '@/types/reports'
 import styles from './ReportsPage.module.css'
 
-function buildCsv(rows: Record<string, unknown>[], cols: { key: string; header: string }[]): string {
-  const escape = (v: unknown) => {
-    const s = v == null ? '' : String(v)
-    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
-  }
-  const header = cols.map((c) => escape(c.header)).join(',')
-  const body = rows.map((r) => cols.map((c) => escape(r[c.key])).join(',')).join('\n')
-  return `﻿${header}\n${body}`
-}
-
-function downloadCsv(content: string, filename: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+async function downloadXlsx(sheetData: Record<string, unknown>[], filename: string) {
+  const XLSX = await import('xlsx')
+  const ws = XLSX.utils.json_to_sheet(sheetData)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Datos')
+  XLSX.writeFile(wb, filename)
 }
 
 type TabKey = 'general' | 'visitors' | 'income'
@@ -66,51 +55,51 @@ export default function ReportsPage() {
     enabled: tab === 'income',
   })
 
-  function handleExportExcel() {
+  async function handleExportExcel() {
     if (tab === 'visitors') {
       const rows = (visitorsData?.data ?? []) as unknown as Record<string, unknown>[]
       if (!rows.length) { toast.error('No hay datos para exportar'); return }
-      const cols = [
-        { key: 'ticketNumber', header: 'Ticket' },
-        { key: 'fullName', header: 'Nombre' },
-        { key: 'categoryName', header: 'Categoría' },
-        { key: 'quantity', header: 'Cantidad' },
-        { key: 'totalAmount', header: 'Total Q' },
-        { key: 'checkInAt', header: 'Ingreso' },
-        { key: 'checkOutAt', header: 'Salida' },
-      ]
-      downloadCsv(buildCsv(rows, cols), `visitantes-${from}.csv`)
+      const flat = rows.map((r) => ({
+        Ticket: r.ticketNumber,
+        Nombre: r.fullName ?? '—',
+        Categoría: r.categoryName,
+        Cantidad: r.quantity,
+        'Total Q': r.totalAmount,
+        Ingreso: r.checkInAt,
+        Salida: r.checkOutAt ?? '—',
+      }))
+      await downloadXlsx(flat, `visitantes-${from}.xlsx`)
     } else if (tab === 'income') {
       const rows = (incomeData?.data ?? []) as Record<string, unknown>[]
       if (!rows.length) { toast.error('No hay datos para exportar'); return }
       const flat = rows.map((r) => ({
-        concepto: (r.concept as { name?: string } | null)?.name ?? String(r.conceptName ?? ''),
-        metodo: (r.paymentMethod as { name?: string } | null)?.name ?? String(r.paymentMethodName ?? ''),
-        monto: r.amount ?? r.total ?? 0,
+        Concepto: (r.concept as { name?: string } | null)?.name ?? String(r.conceptName ?? ''),
+        'Método de pago': (r.paymentMethod as { name?: string } | null)?.name ?? String(r.paymentMethodName ?? ''),
+        'Monto Q': r.amount ?? r.total ?? 0,
       }))
-      downloadCsv(buildCsv(flat, [
-        { key: 'concepto', header: 'Concepto' },
-        { key: 'metodo', header: 'Método de pago' },
-        { key: 'monto', header: 'Monto Q' },
-      ]), `ingresos-${from}.csv`)
+      await downloadXlsx(flat, `ingresos-${from}.xlsx`)
     } else if (tab === 'general' && general) {
       const rows = [
-        { campo: 'Visitantes', valor: general.totalVisitors },
-        { campo: 'Vehículos', valor: general.totalVehicles },
-        { campo: 'Hospedaje', valor: general.totalLodging },
-        { campo: 'Ingresos (Q)', valor: general.totalIncome },
-        { campo: 'Egresos (Q)', valor: general.totalExpense },
-        { campo: 'Neto (Q)', valor: general.net },
+        { Indicador: 'Visitantes', Valor: general.totalVisitors },
+        { Indicador: 'Vehículos', Valor: general.totalVehicles },
+        { Indicador: 'Hospedaje', Valor: general.totalLodging },
+        { Indicador: 'Ingresos (Q)', Valor: general.totalIncome },
+        { Indicador: 'Egresos (Q)', Valor: general.totalExpense },
+        { Indicador: 'Neto (Q)', Valor: general.net },
       ]
-      downloadCsv(buildCsv(rows, [
-        { key: 'campo', header: 'Indicador' },
-        { key: 'valor', header: 'Valor' },
-      ]), `resumen-${from}.csv`)
+      await downloadXlsx(rows, `resumen-${from}.xlsx`)
     }
   }
 
-  function handleExportPdf() {
-    toast.error('La exportación a PDF no está disponible. Usa la opción CSV/Excel.')
+  async function handleExportPdf() {
+    await downloadReportPdf({
+      tab,
+      from,
+      to,
+      general: general as unknown as Record<string, unknown> | undefined,
+      visitors: (visitorsData?.data ?? []) as unknown as Record<string, unknown>[],
+      income: (incomeData?.data ?? []) as Record<string, unknown>[],
+    })
   }
 
   const visitorColumns = [

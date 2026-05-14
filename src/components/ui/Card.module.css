@@ -1,9 +1,10 @@
 .card {
   background: var(--surface);
-  border: 0.5px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 18px;
+  padding: 20px;
+  box-shadow: var(--shadow-xs);
 }
 
 .flush { padding: 0; }
-.sm    { padding: 12px 14px; }
+.sm    { padding: 14px 16px; }

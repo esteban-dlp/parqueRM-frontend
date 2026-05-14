@@ -4,5 +4,6 @@
   align-items: center;
   justify-content: center;
   background: var(--bg);
-  padding: 20px;
+  padding: 24px;
+  background-image: radial-gradient(ellipse at 60% 0%, rgba(74, 222, 128, 0.06) 0%, transparent 60%);
 }

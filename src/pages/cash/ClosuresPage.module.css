@@ -1,37 +1,53 @@
 .previewCard {
-  background: var(--surface-raised);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-  margin-bottom: 16px;
-  border: 0.5px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .previewTitle {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 12px;
+  letter-spacing: 0.08em;
+  margin-bottom: 14px;
 }
 
 .previewRow {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 12px;
 }
 
-.previewItem { display: flex; flex-direction: column; gap: 2px; }
-.previewLabel { font-size: var(--text-sm); color: var(--text-secondary); }
-.previewValue { font-size: 18px; font-weight: 500; color: var(--text); }
+.previewItem { display: flex; flex-direction: column; gap: 3px; }
+
+.previewLabel {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.previewValue {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
 .valueIn  { color: var(--success) !important; }
 .valueOut { color: var(--danger) !important; }
 
 .modalSummary {
   background: var(--surface-raised);
   border-radius: var(--radius-md);
-  padding: 12px;
-  margin-bottom: 14px;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
 }
 
 .modalSummaryRow {
@@ -39,13 +55,13 @@
   justify-content: space-between;
   font-size: var(--text-base);
   color: var(--text-secondary);
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
 .modalSummaryTotal {
-  border-top: 0.5px solid var(--border);
-  padding-top: 6px;
-  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 8px;
   font-weight: 600;
   color: var(--text);
 }
@@ -55,31 +71,31 @@
   justify-content: space-between;
   font-size: var(--text-base);
   color: var(--text-secondary);
-  padding: 4px 0;
+  padding: 5px 0;
 }
 
 .detailTotal {
-  border-top: 0.5px solid var(--border);
-  padding-top: 8px;
-  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+  margin-top: 5px;
   font-weight: 600;
   color: var(--text);
 }
 
 .detailNotes {
-  margin-top: 12px;
+  margin-top: 14px;
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .detailSectionLabel {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 8px;
+  letter-spacing: 0.08em;
+  margin-bottom: 9px;
 }
 
 .detailSubRow {

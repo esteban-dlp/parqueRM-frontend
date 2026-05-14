@@ -7,12 +7,13 @@
   height: 100vh;
   overflow-y: auto;
   flex-shrink: 0;
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.08);
 }
 
-/* ─── Logo / Encabezado ───────────────────────────────── */
+/* ─── Logo / Encabezado ─── */
 .logo {
-  padding: 14px 16px;
-  border-bottom: 0.5px solid var(--sidebar-border);
+  padding: 16px;
+  border-bottom: 1px solid var(--sidebar-border);
   display: flex;
   align-items: center;
   gap: 11px;
@@ -20,11 +21,11 @@
 }
 
 .logoCircle {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.15);
-  border: 1.5px solid rgba(255,255,255,0.25);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -41,42 +42,44 @@
 
 .parkName {
   color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.35;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .parkSub {
-  color: rgba(255,255,255,0.45);
-  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10.5px;
   margin-top: 2px;
 }
 
 .sigapBadge {
   display: inline-block;
-  background: rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.65);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
   font-size: 9.5px;
   padding: 1px 7px;
   border-radius: 4px;
   margin-top: 4px;
+  letter-spacing: 0.04em;
 }
 
-/* ─── Secciones de navegación ────────────────────────── */
+/* ─── Secciones de navegación ─── */
 .navSection {
-  padding: 10px 0 4px;
+  padding: 12px 0 4px;
 }
 
 .navLabel {
   color: var(--sidebar-label);
   font-size: 9.5px;
-  padding: 0 14px 5px;
-  letter-spacing: 0.09em;
+  padding: 0 14px 6px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-/* ─── Items de navegación ────────────────────────────── */
+/* ─── Items de navegación ─── */
 .navItem {
   display: flex;
   align-items: center;
@@ -84,11 +87,12 @@
   padding: 8px 14px;
   cursor: pointer;
   color: var(--sidebar-text);
-  font-size: 12.5px;
-  border-left: 3px solid transparent;
+  font-size: var(--text-sm);
+  border-left: 2px solid transparent;
   user-select: none;
   text-decoration: none;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  margin: 1px 0;
 }
 
 .navItem:hover {
@@ -106,6 +110,11 @@
   width: 15px;
   height: 15px;
   flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.navItem.active .navIcon {
+  opacity: 1;
 }
 
 .navBadge {
@@ -113,26 +122,27 @@
   background: var(--accent-dim);
   color: var(--accent);
   font-size: 9.5px;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: 8px;
+  font-weight: 600;
 }
 
-/* ─── Sub-items ──────────────────────────────────────── */
+/* ─── Sub-items ─── */
 .navSub {
   padding: 6px 6px 6px 38px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.5);
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
-  border-left: 3px solid transparent;
+  border-left: 2px solid transparent;
   user-select: none;
   text-decoration: none;
   display: block;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .navSub:hover {
   color: #fff;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .navSub.active {
@@ -140,42 +150,44 @@
   border-left-color: var(--accent);
 }
 
-/* ─── Footer con usuario ─────────────────────────────── */
+/* ─── Footer con usuario ─── */
 .footer {
   margin-top: auto;
-  padding: 10px 14px;
-  border-top: 0.5px solid var(--sidebar-border);
+  padding: 12px 14px;
+  border-top: 1px solid var(--sidebar-border);
   flex-shrink: 0;
 }
 
 .userChip {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
 }
 
 .userAvatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
   background: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   color: var(--primary);
   flex-shrink: 0;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .userName {
   color: #fff;
-  font-size: 11.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
 .userRole {
-  color: rgba(255,255,255,0.4);
-  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10.5px;
+  margin-top: 1px;
 }

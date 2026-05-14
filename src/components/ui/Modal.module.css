@@ -1,72 +1,88 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
   z-index: 1000;
-  padding: 40px 20px;
+  padding: 48px 20px;
   overflow-y: auto;
+  animation: overlayIn 0.15s ease;
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .modal {
   background: var(--surface);
-  border-radius: var(--radius-lg);
-  border: 0.5px solid var(--border);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
   width: 100%;
   max-width: 560px;
   box-shadow: var(--shadow-lg);
-  animation: slideIn 0.18s ease;
+  animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.wide { max-width: 780px; }
-.narrow { max-width: 400px; }
+.wide   { max-width: 800px; }
+.narrow { max-width: 420px; }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(-12px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(-16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 0.5px solid var(--border);
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
 }
 
 .title {
   font-size: var(--text-lg);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .close {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
 }
 
-.close:hover { background: var(--bg); color: var(--text); }
+.close:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
 
 .body {
-  padding: 20px;
+  padding: 22px;
 }
 
 .footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 14px 20px;
-  border-top: 0.5px solid var(--border);
+  padding: 16px 22px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-raised);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }

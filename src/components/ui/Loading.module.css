@@ -3,19 +3,20 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px;
-  gap: 12px;
-  color: var(--text-secondary);
+  padding: 48px;
+  gap: 14px;
+  color: var(--text-muted);
   font-size: var(--text-sm);
 }
 
 .spinner {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border: 2.5px solid var(--border);
   border-top-color: var(--primary);
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
 }
 
 @keyframes spin {
@@ -27,6 +28,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 .inline .spinner {

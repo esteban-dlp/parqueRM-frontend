@@ -1,8 +1,8 @@
 .header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-6);
   gap: 12px;
 }
 
@@ -10,14 +10,17 @@
 
 .title {
   font-size: var(--text-xl);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .subtitle {
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .actions {

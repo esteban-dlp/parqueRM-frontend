@@ -1,9 +1,12 @@
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   font-size: var(--text-xs);
-  font-weight: 500;
+  font-weight: 600;
   padding: 2px 8px;
   border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .green  { background: var(--badge-green-bg);  color: var(--badge-green-text);  }

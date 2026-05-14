@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { formatCurrency, toNum } from '@/utils/formatters'
+import { downloadReceiptPdf } from '@/utils/pdf'
 import { getApiErrorMessage } from '@/api/client'
 import { useToast } from '@/hooks/useToast'
 import type { ReceiptOriginType, Receipt } from '@/types/receipts'
@@ -243,6 +244,9 @@ export default function CobroPage() {
             )}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+            <Button variant="secondary" onClick={() => downloadReceiptPdf(issuedReceipt)}>
+              Descargar PDF
+            </Button>
             <Button variant="secondary" onClick={() => receiptsApi.triggerPrint(issuedReceipt.id)}>
               Imprimir recibo
             </Button>
@@ -445,10 +449,6 @@ export default function CobroPage() {
                 <Badge variant="blue">{originType ?? 'SERVICIO_GENERAL'}</Badge>
               </div>
             </div>
-
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: 10, lineHeight: 1.4 }}>
-              Nota: los recibos no generan movimientos en Caja automáticamente. Si necesitas registrar el ingreso en caja, hazlo manualmente desde el módulo de Caja.
-            </p>
 
             {createMutation.isError && (
               <div className={styles.errorBox} style={{ marginTop: 12 }}>

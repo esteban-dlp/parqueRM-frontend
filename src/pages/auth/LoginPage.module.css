@@ -1,59 +1,65 @@
 .card {
   background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 36px 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 40px 36px;
   width: 100%;
-  max-width: 360px;
-  box-shadow: var(--shadow-md);
+  max-width: 376px;
+  box-shadow: var(--shadow-lg);
 }
 
 .header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
 .logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius-lg);
   background: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  margin: 0 auto 14px;
+  margin: 0 auto 16px;
+  box-shadow: 0 4px 12px rgba(26, 58, 42, 0.3);
 }
 
 .title {
   font-size: var(--text-xl);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
-  margin-bottom: 4px;
+  margin-bottom: 5px;
+  letter-spacing: -0.02em;
 }
 
 .subtitle {
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .errorBox {
   background: var(--danger-light);
-  border: 0.5px solid var(--danger-border);
+  border: 1px solid var(--danger-border);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 10px 14px;
   font-size: var(--text-sm);
   color: var(--danger-text);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
 }
 
 .submitBtn {
-  margin-top: 4px;
+  margin-top: 6px;
   width: 100%;
   padding: 10px;
   background: var(--primary);
@@ -61,17 +67,29 @@
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   font-family: var(--font);
-  transition: background 0.15s;
+  transition:
+    background var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-fast);
+  box-shadow: 0 2px 6px rgba(26, 58, 42, 0.2);
+  letter-spacing: 0.01em;
 }
 
 .submitBtn:hover:not(:disabled) {
   background: var(--primary-hover);
+  box-shadow: 0 4px 12px rgba(26, 58, 42, 0.28);
+  transform: translateY(-1px);
+}
+
+.submitBtn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .submitBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }

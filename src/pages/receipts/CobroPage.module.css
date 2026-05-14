@@ -1,7 +1,7 @@
 .cobroLayout {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 16px;
+  grid-template-columns: 1fr 330px;
+  gap: 18px;
   align-items: start;
 }
 
@@ -13,19 +13,19 @@
 .cobroSummary { position: sticky; top: 16px; }
 
 .sectionLabel {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   margin-bottom: 10px;
 }
 
 .formGrid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .lineRow {
@@ -36,20 +36,16 @@
   margin-bottom: 6px;
 }
 
-.lineDesc {}
-.lineQty {}
-.linePrice {}
-.lineTotal {}
-
 .removeLine {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 14px;
   padding: 0;
   margin-bottom: 8px;
   line-height: 1;
+  transition: color var(--transition-fast);
 }
 
 .removeLine:hover { color: var(--danger); }
@@ -73,7 +69,8 @@
 }
 
 .summaryDivider {
-  border-top: 0.5px solid var(--border);
+  border: none;
+  border-top: 1px solid var(--border);
   margin: 10px 0;
 }
 
@@ -94,14 +91,14 @@
   margin-bottom: 4px;
 }
 
-.summaryChange { color: var(--success); font-weight: 500; }
+.summaryChange { color: var(--success); font-weight: 600; }
 
 .conceptSuggest { margin-top: 10px; }
 
 .conceptChip {
   display: inline-block;
   background: var(--surface-raised);
-  border: 0.5px solid var(--border-medium);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 4px 10px;
   font-size: var(--text-sm);
@@ -109,10 +106,15 @@
   cursor: pointer;
   margin: 0 4px 4px 0;
   font-family: var(--font);
-  transition: background 0.1s;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
-.conceptChip:hover { background: var(--success-light); border-color: var(--primary); }
+.conceptChip:hover {
+  background: var(--success-light);
+  border-color: var(--primary);
+}
 
 .originBadge {
   display: flex;
@@ -129,37 +131,38 @@
 }
 
 .successIcon {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: var(--success-light);
   color: var(--success);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 10px;
+  margin: 0 auto 12px;
+  border: 2px solid var(--success-border);
 }
 
 .successTitle {
   font-size: var(--text-lg);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text);
   margin-bottom: 4px;
 }
 
 .successNumber {
   font-size: var(--text-base);
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .receiptPreview {
   background: var(--success-light);
-  border: 0.5px solid var(--success-border);
-  border-radius: var(--radius-md);
-  padding: 12px;
-  margin-top: 14px;
+  border: 1px solid var(--success-border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-top: 16px;
 }
 
 .receiptRow {
@@ -173,9 +176,9 @@
 .receiptRow span:last-child { color: var(--text); font-weight: 500; }
 
 .receiptTotal {
-  border-top: 0.5px solid var(--success-border);
-  margin-top: 8px;
-  padding-top: 8px;
+  border-top: 1px solid var(--success-border);
+  margin-top: 10px;
+  padding-top: 10px;
   display: flex;
   justify-content: space-between;
   font-size: var(--text-md);
@@ -185,9 +188,9 @@
 
 .errorBox {
   background: var(--danger-light);
-  border: 0.5px solid var(--danger-border);
+  border: 1px solid var(--danger-border);
   border-radius: var(--radius-md);
-  padding: 8px 12px;
+  padding: 10px 14px;
   font-size: var(--text-sm);
   color: var(--danger-text);
 }

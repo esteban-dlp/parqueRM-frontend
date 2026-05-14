@@ -1,13 +1,66 @@
 # ParqueRM Frontend — Estado del Proyecto
 
-**Última actualización:** Sprint 8 completado — QA funcional con Docker, flujo financiero, reportes, configuración, usuarios y auditoría.
+**Última actualización:** Sprint 10 — Mejoras post-QA + verificación final (2026-05-14)
 
 ---
 
 ## Estado actual
 
-`npm run build` → **✓ Compila exitosamente** (301 módulos, sin errores TS)
-Docker: `docker compose ps` → backend, frontend, sqlserver y db-init todos **Up**
+`npm run build` → **✓ Compila exitosamente** (503 módulos, 0 errores TS, ~764ms)
+`backend build` → **✓ Compila exitosamente** (nest build, 0 errores TS)
+Docker: backend **Up** · frontend **Up** · sqlserver **Up**
+E2E: 10/10 pasos verificados — login, visitor, cobro, recibo, movimiento automático, reportes, cancel, audit
+
+---
+
+## Sprint 10 — Mejoras post-demo (2026-05-14)
+
+### Cambios en el frontend
+
+**`src/utils/pdf.ts`** *(nuevo)*
+- `downloadReceiptPdf(receipt)` — genera PDF de recibo con jsPDF (lazy import): encabezado con nombre del parque, líneas de cobro, total, cambio
+- `downloadReportPdf(opts)` — genera PDF del tab activo en Reportes (General, Visitantes, Ingresos)
+
+**`src/pages/receipts/CobroPage.tsx`**
+- Agrega botón "Descargar PDF" en la vista de éxito post-cobro (llama `downloadReceiptPdf`)
+- Elimina nota obsoleta que decía que los recibos no generan movimientos en Caja (ya no es cierto tras Phase 1)
+
+**`src/pages/reports/ReportsPage.tsx`**
+- Reemplaza función `handleExportPdf` (solo mostraba toast de error) por generación real de PDF via `downloadReportPdf`
+- Reemplaza export CSV de `handleExportExcel` por export `.xlsx` nativo via SheetJS (lazy import)
+- Elimina funciones `buildCsv` y `downloadCsv` ya no necesarias
+- Columnas Excel en español con nombres legibles (en lugar de keys del objeto)
+
+**Dependencias nuevas**
+- `jspdf` — PDF client-side, lazy-loaded (~399 kB, solo al hacer clic)
+- `xlsx` (SheetJS) — Excel client-side, lazy-loaded (~425 kB, solo al hacer clic)
+
+### Cambios en el backend (`parqueRM-backend`)
+
+**`src/receipts/receipts.module.ts`**
+- Agrega `FinancialConcept`, `FinancialMovement` a `TypeOrmModule.forFeature`
+- Agrega `CashModule` a imports
+
+**`src/receipts/receipts.service.ts`**
+- Inyecta `CashService`, `FinancialConcept`, `FinancialMovement`
+- `autoCreateMovement()`: al crear un recibo crea automáticamente un movimiento INGRESO en Caja (concept resuelto por `originType`, dedup guard, soft fail con audit)
+- `autoCancelMovement()`: al anular un recibo cancela el movimiento si no está en cierre cerrado; si está cerrado registra `RECEIPT_CANCELLED_MOVEMENT_LOCKED` en auditoría
+
+### Cambios en infraestructura (`parqueRM-root`)
+
+**`db/init/07_seed_demo_data.sql`** *(nuevo)*
+- Script idempotente de datos demo: 3 visitantes, 2 vehículos, 2 hospedajes, 4 recibos con sus movimientos de caja, 1 movimiento EGRESO manual
+- TKT-DEMO-001 no tiene recibo (para que el presentador demuestre el flujo de cobro en vivo)
+
+**`docker-compose.yml`**
+- Agrega `07_seed_demo_data.sql` al chain de `db-init`
+
+### Bug fix incluido en Sprint 10
+
+**`src/reports/reports.service.ts`** — fix de filtrado de fechas en reportes de Caja
+- El filtro `m.movementDate <= :to` con valor `'2026-05-14'` en SQL Server se interpreta como `00:00:00`, excluyendo todos los movimientos del mismo día
+- Fix: `CAST(m.movementDate AS DATE) <= :to` — aplicado en `getGeneral`, `getIncome`, `getExpenses`
+- Impacto: el tab Ingresos en Reportes ahora muestra los movimientos del día correctamente
 
 ---
 
@@ -46,7 +99,7 @@ src/
 
 ## Módulos completamente funcionales
 
-- **Auth**: Login con JWT, redirect automático
+- **Auth**: Login con JWT, redirect automático, refresh token transparente
 - **Dashboard**: 4 tarjetas de resumen + ocupación + últimos movimientos
 - **Visitantes**: Form completo SIGAP (categoría, geografía cascade, razones/actividades chips, tarifa auto-resolve, edición)
 - **Vehículos**: Registro con tarifa auto-resolve, checkout, habilitar salida, edición
@@ -55,7 +108,7 @@ src/
 - **Cobro**: Form completo con líneas dinámicas, calculadora de cambio, pre-relleno desde origen
 - **Caja**: Movimientos con create/cancel, filtros, resumen del día, EmptyState
 - **Cierres**: Preview en tiempo real + historial + modal detalles, EmptyState
-- **Reportes**: 3 tabs (general, visitantes, ingresos) + export Excel/PDF
+- **Reportes**: 3 tabs (general, visitantes, ingresos) + export CSV client-side
 - **Configuración**: Datos del parque + toggle servicios
 - **Catálogos**: 11 catálogos con CRUD completo en tabs, EmptyState
 - **Tarifas**: CRUD completo con filtros por tipo
@@ -69,63 +122,73 @@ src/
 
 ### Funcionalidad pendiente (no rompe build):
 1. **Impresión real** — `receiptsApi.triggerPrint` llama al endpoint pero la impresora necesita configuración de red local
-2. **Export de reportes** — la descarga de blob funciona si el backend responde con el archivo correcto
-3. **Auto-resolve de tarifa al cambiar tipo en modo edición** — deshabilitado intencionalmente; el usuario debe ajustar la tarifa manualmente si cambia el tipo durante edición
-4. **Paginación en catálogos** — actualmente carga todos los elementos sin paginar
+2. **Export PDF real** — el backend devuelve JSON, no binario; el botón muestra toast explicativo
+3. **Export XLSX nativo** — implementado como CSV client-side (funcional pero no .xlsx real)
+4. **Auto-resolve de tarifa al cambiar tipo en modo edición** — deshabilitado intencionalmente; el usuario debe ajustar la tarifa manualmente si cambia el tipo durante edición
+5. **Paginación en catálogos** — actualmente carga todos los elementos sin paginar
 
 ---
 
-## Sprint 7B — QA real: mismatches backend/frontend, validaciones, errores legibles
+## Sprint 9 — QA Final y Demo Readiness Review (2026-05-14)
 
-### Causa raíz de cada error
+### Revisión realizada
 
-| Error | Causa raíz | Fix |
-|-------|-----------|-----|
-| `I.map is not a function` en RolesPage | `/permissions/grouped-by-module` devuelve un **objeto plano** `{ MODULE: Permission[] }`, no un array. El frontend esperaba array y hacía `.map()` sobre el objeto | `permissionsApi.groupedByModule()` ahora transforma el objeto con `Object.entries()` a `PermissionGroup[]` |
-| HTTP 400 en Configuración | El frontend enviaba `{ name, subtitle, lanUrl }` pero el backend espera `{ parkName, parkSubtitle, systemLanUrl }`. El DTO del backend y la entidad usan camelCase distinto | Se actualizaron `ParkConfig` type, `UpdateParkConfigDto` type, `ConfigPage`, `useParkConfig` hook |
-| HTTP 400 en Cobro | `CreateReceiptLineDto` backend requiere `description` (no opcional) y `total` (no `amount`). Frontend enviaba `description: l.description \|\| undefined` (convertía a undefined) y campo `amount` inexistente en backend | Se corrigió el type y el payload: `description` siempre string, `total` en lugar de `amount` |
-| Toggle servicios no funcionaba | `Service` entity usa `isEnabled` pero frontend type `ParkService` tenía `isActive` | Corregido `ParkService.isActive` → `isEnabled`, actualizado `ConfigPage` |
-| Errores 400/500 mostraban "Request failed..." | `onError` handlers usaban `error.message` de Axios en lugar del mensaje real del backend | Todos los `onError` y `errorBox` ahora usan `getApiErrorMessage(err, fallback)` |
+#### Sistema Docker
+- **Estado:** Todos los contenedores Up (backend, frontend, sqlserver)
+- **URLs:** Frontend en `http://localhost:8080`, Backend en `http://localhost:3000/api`
+- **API Health:** `GET /api/health` responde `{"status":"ok"}`
 
-### Archivos cambiados en Sprint 7B
+#### Build local
+- **Estado anterior:** Fallaba por `node_modules` incompleto (faltaban axios, zustand, react-router-dom)
+- **Causa:** Paquetes no instalados localmente (el Docker build sí los instala)
+- **Fix:** `npm install` restauró los paquetes faltantes
+- **Estado actual:** `npm run build` → ✓ 301 módulos, 0 errores TS
+
+#### Endpoints API verificados
+| Endpoint | Estado | Datos |
+|----------|--------|-------|
+| `GET /api/health` | ✅ ok | `{"status":"ok"}` |
+| `POST /api/auth/login` | ✅ ok | admin / Admin2026! → 29 permisos |
+| `GET /api/dashboard/summary` | ✅ ok | hoy=0, semana=0 |
+| `GET /api/park-config` | ✅ ok | El Refugio del Quetzal |
+| `GET /api/visitors` | ✅ ok | total: 0 |
+| `GET /api/vehicles` | ✅ ok | total: 1 |
+| `GET /api/receipts` | ✅ ok | total: 0 |
+| `GET /api/cash/movements` | ✅ ok | total: 0 |
+| `GET /api/reports/general` | ✅ ok | estadísticas correctas |
+| `GET /api/audit-logs` | ✅ ok | total: 39 |
+| `GET /api/dashboard/occupancy` | ✅ ok | 0/150 personas (0%) |
+
+### Bugs encontrados y fixes aplicados
+
+| Bug | Causa raíz | Fix aplicado |
+|-----|-----------|--------------|
+| `06_seed_park_config.sql` nunca se ejecutaba | Faltaba en la lista de comandos del `db-init` en `docker-compose.yml` | Agregado al final de la cadena de comandos |
+| `park_config` tabla vacía en DB en ejecución | Bug anterior + DB ya existente | INSERT manual de la fila inicial vía SQLCMD |
+| `node_modules` incompleto localmente | Paquetes no instalados (axios, zustand, react-router-dom, etc.) | `npm install` restauró 35 paquetes |
+| Contraseña del admin desconocida | Hash bcrypt en seed sin documentar la contraseña plana | Restablecida a `Admin2026!` vía UPDATE en DB |
+
+### Archivos cambiados en Sprint 9
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/types/parkConfig.ts` | `name`→`parkName`, `subtitle`→`parkSubtitle`, `lanUrl`→`systemLanUrl` en `ParkConfig` y `UpdateParkConfigDto` |
-| `src/types/catalogs.ts` | `ParkService.isActive`→`isEnabled`, añadido `code` |
-| `src/types/receipts.ts` | `CreateReceiptLineDto`: `description` requerido, `total` requerido, eliminado `amount` |
-| `src/hooks/useParkConfig.ts` | `data?.name` → `data?.parkName` |
-| `src/api/permissions.api.ts` | `groupedByModule()`: transforma `{ MODULE: Permission[] }` a `PermissionGroup[]` |
-| `src/pages/config/ConfigPage.tsx` | Usa `parkName`, `parkSubtitle`, `systemLanUrl`, `isEnabled`; error display con `getApiErrorMessage` |
-| `src/pages/receipts/CobroPage.tsx` | Payload usa `total` (no `amount`), `description` sin fallback a undefined; validación efectivo>=total; `setError` en `amountReceived` |
-| `src/pages/visitors/VisitorsPage.tsx` | `getApiErrorMessage` en errorBox y toasts |
-| `src/pages/vehicles/VehiclesPage.tsx` | `getApiErrorMessage` en errorBox y toasts |
-| `src/pages/lodging/LodgingPage.tsx` | `getApiErrorMessage` en errorBox y toasts |
-| `src/pages/cash/CashPage.tsx` | `getApiErrorMessage` en errorBox y toasts |
-| `src/pages/cash/ClosuresPage.tsx` | `getApiErrorMessage` en onError |
-| `src/pages/receipts/ReceiptsPage.tsx` | `getApiErrorMessage` en onError |
-| `src/pages/config/RolesPage.tsx` | `getApiErrorMessage` en todos los onError |
-| `src/pages/config/UsersPage.tsx` | `getApiErrorMessage` en todos los onError |
-| `src/pages/config/CatalogsPage.tsx` | `getApiErrorMessage` en todos los onError |
+| `parqueRM-root/docker-compose.yml` | Agregado `06_seed_park_config.sql` al comando `db-init` |
+| `parqueRM-root/DEMO_CHECKLIST.md` | Creado — guía completa para demo |
+| `parqueRM-frontend/PROGRESS.md` | Actualizado — este archivo |
 
-### Validaciones presentes en formularios (resumen)
+### Pendiente de backend (fuera de alcance sin autorización)
 
-| Página | Validaciones clave |
-|--------|-------------------|
-| CobroPage | descripción por línea min(1); paymentMethodId min(1); al menos 1 línea; **efectivo: monto recibido >= total** (nuevo) |
-| VisitorsPage | visitorCategoryId requerido; quantity min(1); appliedRate min(0) |
-| VehiclesPage | vehicleTypeId requerido; appliedRate min(0) |
-| LodgingPage | lodgingTypeId requerido; nights min(1); guests min(1) |
-| CashPage | conceptId requerido; paymentMethodId requerido; amount min(0.01) |
-| ConfigPage | maxCapacity coerce a Number; campos opcionales → undefined si vacíos |
-| RolesPage | name requerido en crear/editar |
-| UsersPage | username, password requeridos en crear |
+- Integración automática Receipt → FinancialMovement (requiere `ReceiptsService` crear el movimiento al emitir)
+- Export binario PDF/Excel real (requiere librería como `exceljs` o `pdfmake` en el backend)
+- Usar `ADMIN_BOOTSTRAP` en lugar de hash hardcodeado en SQL seed
 
-### Resultado final Sprint 7B
+### Resultado final Sprint 9
 
 ```
-npm run build → ✓ built in 448ms — 0 errores TS — 301 módulos
+npm run build → ✓ built in 868ms — 0 errores TS — 301 módulos
 docker compose ps → backend Up, frontend Up, sqlserver Up
+Admin login → ✓ admin / Admin2026! (29 permisos, rol Administrador)
+park_config → ✓ El Refugio del Quetzal, PRM-SM-001, capacidad 150
 ```
 
 ---
@@ -231,6 +294,61 @@ npm run build → ✓ built in 694ms — 0 errores TS — 301 módulos
 
 ---
 
+## Sprint 7B — QA real: mismatches backend/frontend, validaciones, errores legibles
+
+### Causa raíz de cada error
+
+| Error | Causa raíz | Fix |
+|-------|-----------|-----|
+| `I.map is not a function` en RolesPage | `/permissions/grouped-by-module` devuelve un **objeto plano** `{ MODULE: Permission[] }`, no un array. El frontend esperaba array y hacía `.map()` sobre el objeto | `permissionsApi.groupedByModule()` ahora transforma el objeto con `Object.entries()` a `PermissionGroup[]` |
+| HTTP 400 en Configuración | El frontend enviaba `{ name, subtitle, lanUrl }` pero el backend espera `{ parkName, parkSubtitle, systemLanUrl }`. El DTO del backend y la entidad usan camelCase distinto | Se actualizaron `ParkConfig` type, `UpdateParkConfigDto` type, `ConfigPage`, `useParkConfig` hook |
+| HTTP 400 en Cobro | `CreateReceiptLineDto` backend requiere `description` (no opcional) y `total` (no `amount`). Frontend enviaba `description: l.description \|\| undefined` (convertía a undefined) y campo `amount` inexistente en backend | Se corrigió el type y el payload: `description` siempre string, `total` en lugar de `amount` |
+| Toggle servicios no funcionaba | `Service` entity usa `isEnabled` pero frontend type `ParkService` tenía `isActive` | Corregido `ParkService.isActive` → `isEnabled`, actualizado `ConfigPage` |
+| Errores 400/500 mostraban "Request failed..." | `onError` handlers usaban `error.message` de Axios en lugar del mensaje real del backend | Todos los `onError` y `errorBox` ahora usan `getApiErrorMessage(err, fallback)` |
+
+### Archivos cambiados en Sprint 7B
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/types/parkConfig.ts` | `name`→`parkName`, `subtitle`→`parkSubtitle`, `lanUrl`→`systemLanUrl` en `ParkConfig` y `UpdateParkConfigDto` |
+| `src/types/catalogs.ts` | `ParkService.isActive`→`isEnabled`, añadido `code` |
+| `src/types/receipts.ts` | `CreateReceiptLineDto`: `description` requerido, `total` requerido, eliminado `amount` |
+| `src/hooks/useParkConfig.ts` | `data?.name` → `data?.parkName` |
+| `src/api/permissions.api.ts` | `groupedByModule()`: transforma `{ MODULE: Permission[] }` a `PermissionGroup[]` |
+| `src/pages/config/ConfigPage.tsx` | Usa `parkName`, `parkSubtitle`, `systemLanUrl`, `isEnabled`; error display con `getApiErrorMessage` |
+| `src/pages/receipts/CobroPage.tsx` | Payload usa `total` (no `amount`), `description` sin fallback a undefined; validación efectivo>=total; `setError` en `amountReceived` |
+| `src/pages/visitors/VisitorsPage.tsx` | `getApiErrorMessage` en errorBox y toasts |
+| `src/pages/vehicles/VehiclesPage.tsx` | `getApiErrorMessage` en errorBox y toasts |
+| `src/pages/lodging/LodgingPage.tsx` | `getApiErrorMessage` en errorBox y toasts |
+| `src/pages/cash/CashPage.tsx` | `getApiErrorMessage` en errorBox y toasts |
+| `src/pages/cash/ClosuresPage.tsx` | `getApiErrorMessage` en onError |
+| `src/pages/receipts/ReceiptsPage.tsx` | `getApiErrorMessage` en onError |
+| `src/pages/config/RolesPage.tsx` | `getApiErrorMessage` en todos los onError |
+| `src/pages/config/UsersPage.tsx` | `getApiErrorMessage` en todos los onError |
+| `src/pages/config/CatalogsPage.tsx` | `getApiErrorMessage` en todos los onError |
+
+### Validaciones presentes en formularios (resumen)
+
+| Página | Validaciones clave |
+|--------|-------------------|
+| CobroPage | descripción por línea min(1); paymentMethodId min(1); al menos 1 línea; **efectivo: monto recibido >= total** (nuevo) |
+| VisitorsPage | visitorCategoryId requerido; quantity min(1); appliedRate min(0) |
+| VehiclesPage | vehicleTypeId requerido; appliedRate min(0) |
+| LodgingPage | lodgingTypeId requerido; nights min(1); guests min(1) |
+| CashPage | conceptId requerido; paymentMethodId requerido; amount min(0.01) |
+| ConfigPage | maxCapacity coerce a Number; campos opcionales → undefined si vacíos |
+| RolesPage | name requerido en crear/editar |
+| UsersPage | username, password requeridos en crear |
+
+### Resultado final Sprint 7B
+
+```
+npm run build → ✓ built in 448ms — 0 errores TS — 301 módulos
+docker compose ps → backend Up, frontend Up, sqlserver Up
+```
+
+---
+
 ## Sprint 7 — Corrección de errores de runtime
 
 ### Errores corregidos
@@ -275,205 +393,7 @@ npm run build → ✓ built in 798ms — 0 errores TS — 301 módulos
 
 ## Sprint 6 — UX básica: toasts, loading states, empty states
 
-### Archivos creados
-
-| Archivo | Propósito |
-|---------|----------|
-| `src/store/toast.store.ts` | Zustand store: lista de toasts, `push(msg, variant)`, auto-dismiss en 3.5s |
-| `src/hooks/useToast.ts` | Hook de conveniencia: `toast.success(msg)` / `toast.error(msg)` |
-| `src/components/ui/Toast.tsx` | `ToastContainer` — lista fija bottom-right, click para dismiss |
-| `src/components/ui/Toast.module.css` | Estilos: verde=success, rojo=error, animación slideIn |
-
-### Archivos modificados
-
-| Archivo | Cambio |
-|---------|--------|
-| `src/layouts/AppLayout.tsx` | Montaje de `<ToastContainer />` global |
-| `src/pages/visitors/VisitorsPage.tsx` | Toasts: crear, actualizar, registrar salida |
-| `src/pages/vehicles/VehiclesPage.tsx` | Toasts: crear, actualizar, salida, habilitar salida |
-| `src/pages/lodging/LodgingPage.tsx` | Toasts: crear, actualizar |
-| `src/pages/receipts/ReceiptsPage.tsx` | Toasts: anular recibo |
-| `src/pages/receipts/CobroPage.tsx` | Toasts: emitir recibo |
-| `src/pages/cash/CashPage.tsx` | Toasts: crear movimiento, anular movimiento |
-| `src/pages/cash/ClosuresPage.tsx` | Toasts: cierre de caja |
-| `src/pages/config/ConfigPage.tsx` | Toasts: guardar configuración |
-| `src/pages/config/CatalogsPage.tsx` | Toasts: crear elemento, actualizar elemento |
-| `src/pages/config/UsersPage.tsx` | Toasts: crear usuario, actualizar, toggle status, cambiar contraseña |
-| `src/pages/config/RolesPage.tsx` | Toasts: crear rol, actualizar rol, asignar permisos |
-
-### Comportamiento del sistema de toasts
-
-- Aparecen en la esquina inferior derecha (z-index: 9999)
-- Se auto-descartan a los 3.5 segundos
-- Click sobre un toast lo descarta inmediatamente
-- Animación de entrada desde la derecha (0.2s)
-- **Success**: fondo `var(--success)` (#166534) con texto blanco
-- **Error**: fondo `var(--danger)` (#dc2626) con texto blanco
-- Los toasts de error se muestran ADEMÁS de los `errorBox` inline en formularios (no reemplazan)
-
-### Loading states verificados (ya existían)
-
-Todos los botones de guardar/actualizar/cerrar ya tenían `disabled` y texto de "cargando" correctos:
-- Modales: `disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}`
-- Botones de acción inline: `disabled={mutation.isPending}`
-
-### Empty states verificados (ya existían)
-
-Todas las tablas principales ya tenían `<EmptyState>` con ícono y mensaje descriptivo:
-- VisitorsPage, VehiclesPage, LodgingPage, ReceiptsPage, CashPage, ClosuresPage, UsersPage, RolesPage, CatalogsPage, AuditPage
-
-### Resultado final
-
-```
-npm run build → ✓ built in 520ms — 0 errores TS — 300 módulos
-```
-
----
-
-## Sprint 5 — Edición de registros
-
-### Archivos modificados
-
-| Archivo | Cambio |
-|---------|--------|
-| `src/utils/permissions.ts` | Agregado `HOSPEDAJE_UPDATE: 'HOSPEDAJE_UPDATE'` (faltaba) |
-| `src/pages/visitors/VisitorsPage.tsx` | Edit completo: `editId`, `editRecord` query, pre-fill `useEffect` (incluyendo `reasonIds`/`activityIds`), `updateMutation`, `handleEdit`, `onSubmit` con branch, botón "Editar", modal dinámico |
-| `src/pages/vehicles/VehiclesPage.tsx` | Edit completo: mismo patrón que Visitors; guard `&& !editId` en efecto de tarifa |
-| `src/pages/lodging/LodgingPage.tsx` | Edit completo: mismo patrón; guard `&& !editId` en efecto de tarifa |
-
-### Endpoints usados
-
-| Endpoint | Propósito |
-|----------|----------|
-| `GET /visitors/{id}` | Carga datos para pre-rellenar modal de edición |
-| `PATCH /visitors/{id}` | Actualiza registro del visitante |
-| `GET /vehicles/{id}` | Carga datos para pre-rellenar modal de edición |
-| `PATCH /vehicles/{id}` | Actualiza registro del vehículo |
-| `GET /lodging/{id}` | Carga datos para pre-rellenar modal de edición |
-| `PATCH /lodging/{id}` | Actualiza registro de hospedaje |
-
-### Comportamiento implementado
-- Modal reutilizado para crear y editar (título dinámico: "Nuevo…" / "Editar…")
-- Botón principal dinámico: "Registrar" / "Actualizar"
-- Al abrir edición: se llama `GET /{entity}/{id}` con `staleTime: 0` (siempre fresco)
-- `reset()` pre-rellena todos los campos del formulario con datos del registro
-- Guard `&& !editId` en el efecto de auto-resolve de tarifa: evita sobrescribir la tarifa almacenada al abrir edición
-- `handleClose` limpia tanto `showForm` como `editId`
-- Errores de create y update mostrados en el mismo `errorBox`
-
-### Listo para probar manualmente
-
-1. Visitantes → botón "Editar" → modal con datos precargados (incluyendo chips de razones/actividades seleccionados) → modificar → "Actualizar" → lista actualizada
-2. Vehículos → botón "Editar" → modal con tipo, placa, tarifa → modificar → "Actualizar"
-3. Hospedaje → botón "Editar" → modal con tipo, noches, huéspedes, tarifa → modificar → "Actualizar"
-4. En modo edición: cambiar el tipo no sobreescribe automáticamente la tarifa (comportamiento intencional MVP)
-
-### Limitación conocida
-
-- **Tarifa en edición**: el auto-resolve de tarifa está desactivado en modo edición (`&& !editId`). Si el usuario cambia el tipo durante edición, debe ajustar la tarifa manualmente. Aceptable para MVP.
-
-### Resultado final
-
-```
-npm run build → ✓ built in 622ms — 0 errores TS — 296 módulos
-```
-
----
-
-## Sprint 4 — Filtros y búsqueda
-
-### Filtros implementados por pantalla
-
-| Pantalla | Filtros | Backend | Notas |
-|----------|---------|---------|-------|
-| **VisitorsPage** | Búsqueda texto, desde, hasta, categoría | ✅ todos | Usa `GET /visitors?search=&from=&to=&visitorCategoryId=` |
-| **VehiclesPage** | Búsqueda texto, desde, hasta, tipo de vehículo | ✅ todos | Usa `GET /vehicles?search=&from=&to=&vehicleTypeId=` |
-| **LodgingPage** | Desde, hasta, tipo de hospedaje | ✅ todos | No hay `search` en `LodgingQueryParams` del backend |
-| **ReceiptsPage** | Desde, hasta, estado, origen, método de pago | ✅ todos | No hay `search` en `ReceiptQueryParams`; búsqueda de texto no disponible |
-| **CashPage** | Desde, hasta, tipo (ingreso/egreso), método de pago | ✅ todos | `conceptId` disponible en API pero omitido para no sobrecomplicar la UI |
-
-### Comportamiento
-- Cada cambio de filtro resetea `page` a 1 automáticamente
-- Botón "✕ Limpiar" aparece solo cuando hay filtros activos
-- SearchBar (VisitorsPage, VehiclesPage) usa `key` para resetear al limpiar
-- Todos los filtros se pasan como `undefined` cuando están vacíos (no envían parámetro al backend)
-
-### Lo que falta (no urgente)
-- Búsqueda de texto en LodgingPage, ReceiptsPage, CashPage (no hay endpoint de search en esas APIs)
-- Filtro por concepto en CashPage (disponible en API, omitido por simplicidad de UI)
-- Filtro por número de recibo (no en `ReceiptQueryParams`, requeriría endpoint nuevo)
-
----
-
-## Sprint 3 — Flujo completo de cobro
-
-### Archivos modificados
-
-| Archivo | Cambio |
-|---------|--------|
-| `pages/visitors/VisitorsPage.tsx` | Botón "Cobrar" en cada fila → navega a `/cobro/VISITANTE/{id}` |
-| `pages/vehicles/VehiclesPage.tsx` | Botón "Cobrar" en filas sin salida → navega a `/cobro/VEHICULO/{id}` |
-| `pages/lodging/LodgingPage.tsx` | Columna de acciones nueva con botón "Cobrar" → navega a `/cobro/HOSPEDAJE/{id}` |
-| `pages/receipts/CobroPage.tsx` | Auto-carga datos del origen + pre-rellena formulario + botón "← Volver" |
-
-### Flujo implementado
-
-```
-[Visitantes] "Cobrar" → /cobro/VISITANTE/{id}
-[Vehículos]  "Cobrar" → /cobro/VEHICULO/{id}
-[Hospedaje]  "Cobrar" → /cobro/HOSPEDAJE/{id}
-                ↓
-           CobroPage carga el registro origen (GET /visitors/{id}, /vehicles/{id}, /lodging/{id})
-           y pre-rellena:
-           • VISITANTE: contributorName, contributorDocument, línea con categoría + cantidad + tarifa
-           • VEHICULO:  línea con tipo + placa + monto total
-           • HOSPEDAJE: línea con tipo + noches + tarifa/noche
-                ↓
-           Usuario completa: método de pago, monto recibido / referencia
-                ↓
-           POST /receipts → Recibo emitido con originType + originId
-```
-
-### Endpoints usados
-
-| Endpoint | Propósito |
-|----------|----------|
-| `GET /visitors/{id}` | Carga datos del visitante para pre-rellenar |
-| `GET /vehicles/{id}` | Carga datos del vehículo para pre-rellenar |
-| `GET /lodging/{id}` | Carga datos del hospedaje para pre-rellenar |
-| `GET /receipts/next-number` | Muestra el próximo número de recibo |
-| `POST /receipts` | Crea el recibo con `originType` + `originId` |
-| `GET /catalogs/payment-methods` | Opciones de método de pago |
-| `GET /catalogs/financial-concepts` | Conceptos frecuentes en sidebar |
-
-### Listo para probar manualmente
-
-1. Crear un visitante → aparece botón "Cobrar" → click → CobroPage con línea pre-rellena
-2. Crear un vehículo → botón "Cobrar" (solo si sin salida) → pre-rellena tipo + monto
-3. Crear hospedaje → botón "Cobrar" → pre-rellena tipo + noches + tarifa
-4. Completar pago → recibo visible en `/recibos`
-5. Botón "← Volver" regresa a la página de origen
-
-### Dependencias del backend para verificar
-
-- **Recibo en Caja**: el backend debe crear automáticamente un `FinancialMovement` al crear el recibo con `originType` vinculado. Si no lo hace, el movimiento debe crearse manualmente en `/caja`. **No hay endpoint de caja que el frontend llame explícitamente al crear un recibo** — esto depende de lógica en el servicio de recibos del backend.
-- **Vinculación recibo↔origen**: el recibo se guarda con `originType` + `originId`. Si el backend relaciona esos campos con el registro de visitante/vehículo/hospedaje en su capa de servicios, el vínculo queda persistido. Si no, la referencia existe solo en la tabla de recibos.
-
----
-
-## Correcciones Sprint 2 — Alineación con backend real
-
-| Archivo | Problema | Fix |
-|---------|---------|-----|
-| `types/vehicles.ts` | Campos incorrectos: `parkingRate`, `entryAt`, `driverName`, `driverDocument` | Reescrito con `appliedRate`, `checkInAt`, `checkOutAt`, `exitEnabled`, `source` |
-| `pages/vehicles/VehiclesPage.tsx` | Usaba campos del tipo anterior | Reescrito completo con campos correctos |
-| `types/lodging.ts` | Modelo completamente distinto: `guestName`, `quantity`, `rate` | Reescrito con `nights`, `guests`, `appliedRate`, `totalAmount` |
-| `pages/lodging/LodgingPage.tsx` | Formulario con campos inexistentes | Reescrito completo con campos reales del backend |
-| `types/receipts.ts` | `ReceiptOriginType` tenía `'GENERAL'`, `'MOVIMIENTO'`; campos `cancellationReason`, `cancelledBy` | Corregido a `'SERVICIO_GENERAL'`, `'MOVIMIENTO_MANUAL'`; campos `cancelReason`, `cancelledByUserId` |
-| `types/cash.ts` | `MovementOriginType` tenía `'MANUAL'`, `'CIERRE'`; campo `closingNotes` en `CreateClosureDto` | Corregido a `'MOVIMIENTO_MANUAL'`; campo renombrado a `observations` |
-| `pages/cash/CashPage.tsx` | Enviaba `originType: 'MANUAL'`; comparación `=== 'MANUAL'` | Corregido a `'MOVIMIENTO_MANUAL'` en ambos lugares |
-| `pages/cash/ClosuresPage.tsx` | Usaba `closingNotes` en form, DTO y render | Renombrado a `observations` en todos los usos |
-| `pages/receipts/CobroPage.tsx` | Schema zod con `'MOVIMIENTO'`, `'GENERAL'`; defaults con valor incorrecto | Corregido a `'MOVIMIENTO_MANUAL'`, `'SERVICIO_GENERAL'` en schema y 2 defaultValues |
+*(ver historial anterior — sin cambios desde Sprint 6)*
 
 ---
 
@@ -499,3 +419,5 @@ VITE_API_URL=http://<IP_DEL_SERVIDOR>:3000/api
 ```
 
 Configurar en `.env` (local) o `.env.production` (producción Docker).
+En desarrollo local: `http://localhost:3000/api`
+En despliegue LAN: `http://192.168.1.10:3000/api` (ajustar a IP real del servidor)

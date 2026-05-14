@@ -15,11 +15,12 @@
 .tabs {
   display: flex;
   gap: 2px;
-  background: var(--surface-raised);
+  background: var(--surface-sunken);
   border-radius: var(--radius-md);
   padding: 3px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   width: fit-content;
+  border: 1px solid var(--border);
 }
 
 .tab {
@@ -27,41 +28,44 @@
   border: none;
   cursor: pointer;
   font-family: var(--font);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   padding: 6px 16px;
   border-radius: calc(var(--radius-md) - 2px);
-  transition: background 0.1s, color 0.1s;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  font-weight: 500;
 }
 
-.tab:hover { color: var(--text); }
+.tab:hover { color: var(--text); background: rgba(0, 0, 0, 0.03); }
 
 .tabActive {
   background: var(--surface);
   color: var(--text);
-  font-weight: 500;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
 }
 
 .generalGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .sectionTitle {
-  font-size: var(--text-base);
-  font-weight: 500;
-  color: var(--text);
-  margin-bottom: 10px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 12px;
 }
 
 .reportRow {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 0;
-  border-bottom: 0.5px solid var(--border);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
   font-size: var(--text-base);
   color: var(--text);
 }
@@ -76,7 +80,7 @@
 
 .reportCount {
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   min-width: 24px;
   text-align: right;
 }
@@ -84,6 +88,6 @@
 .reportRowTotal {
   font-weight: 600;
   border-top: 1px solid var(--border-medium);
-  margin-top: 4px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 9px;
 }
