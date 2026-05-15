@@ -28,6 +28,11 @@ export interface Receipt {
   originId: number | null
   paymentMethodId: number
   paymentMethod?: { id: number; name: string }
+  subtotal: number | null
+  discountType: 'PERCENTAGE' | 'AMOUNT' | null
+  discountPercentage: number | null
+  discountAmount: number | null
+  discountReason: string | null
   total: number
   amountReceived: number | null
   changeAmount: number | null
@@ -57,6 +62,11 @@ export interface CreateReceiptDto {
   originType: string
   originId?: number
   paymentMethodId: number
+  subtotal?: number
+  discountType?: 'PERCENTAGE' | 'AMOUNT'
+  discountValue?: number
+  discountAmount?: number
+  discountReason?: string
   total: number
   amountReceived?: number
   changeAmount?: number

@@ -20,24 +20,26 @@ const queryClient = new QueryClient({
 })
 
 // Componente interno que recupera sesión activa al recargar la página.
-// Si hay accessToken en localStorage, llama a /auth/me para repoblar el store.
+// Siempre llama a /auth/me si hay token para asegurar que los permisos estén frescos.
 function AuthInit({ children }: { children: React.ReactNode }) {
   const setUser = useAuthStore((s) => s.setUser)
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const logout = useAuthStore((s) => s.logout)
 
   useEffect(() => {
     const token = tokenStorage.getAccess()
-    if (token && !isAuthenticated) {
+    if (token) {
       authApi
         .me()
         .then((user) => {
           if (user) setUser(user)
         })
         .catch(() => {
-          tokenStorage.clear()
+          logout()
         })
     }
-  }, [setUser, isAuthenticated])
+  // Solo ejecutar una vez al montar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return <>{children}</>
 }

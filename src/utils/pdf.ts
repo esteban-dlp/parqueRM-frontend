@@ -1,10 +1,9 @@
 import { toNum } from './formatters'
+import { getServerBaseUrl } from '@/api/client'
 import type { Receipt } from '@/types/receipts'
+import type { ParkConfig } from '@/types/parkConfig'
 
 type JsPDF = import('jspdf').jsPDF
-
-const PARK_NAME = 'El Refugio del Quetzal'
-const PARK_CODE = 'PRM-SM-001'
 
 function fmtQ(amount: unknown): string {
   return `Q ${toNum(amount).toFixed(2)}`
@@ -15,25 +14,118 @@ function fmtDate(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function drawHeader(doc: JsPDF, title: string) {
+async function loadImageAsDataUrl(url: string): Promise<string | null> {
+  console.log('[PDF] Loading logo from:', url)
+  // Primary: fetch → FileReader (works when server returns CORS headers)
+  try {
+    const res = await fetch(url, { mode: 'cors' })
+    if (!res.ok) {
+      console.error(`[PDF] Logo fetch failed: HTTP ${res.status} for ${url}`)
+    } else {
+      const blob = await res.blob()
+      const dataUrl = await new Promise<string | null>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = (e) => { console.error('[PDF] FileReader error:', e); resolve(null) }
+        reader.readAsDataURL(blob)
+      })
+      if (dataUrl) { console.log('[PDF] Logo loaded via fetch, mime:', blob.type); return dataUrl }
+    }
+  } catch (err) {
+    console.error('[PDF] Fetch error (likely CORS), trying canvas fallback:', err)
+  }
+  // Fallback: Image + canvas (requires server to send CORS headers or same origin)
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth || 200
+        canvas.height = img.naturalHeight || 80
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { resolve(null); return }
+        ctx.drawImage(img, 0, 0)
+        const dataUrl = canvas.toDataURL()
+        console.log('[PDF] Logo loaded via canvas fallback')
+        resolve(dataUrl)
+      } catch (e) {
+        console.error('[PDF] Canvas tainted — server missing CORS headers:', e)
+        resolve(null)
+      }
+    }
+    img.onerror = (e) => { console.error('[PDF] Image element load error:', e); resolve(null) }
+    img.src = url
+  })
+}
+
+async function drawHeader(doc: JsPDF, title: string, parkConfig?: ParkConfig | null): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth()
+
+  const parkName = parkConfig?.parkName ?? 'Parque Nacional'
+  const parkSubtitle = parkConfig?.parkSubtitle ?? ''
+  const phone = parkConfig?.phone ?? ''
+  const address = parkConfig?.address ?? ''
+  const email = parkConfig?.email ?? ''
+
+  let startY = 10
+
+  // Logo
+  console.log('[PDF] parkConfig.logoUrl =', parkConfig?.logoUrl ?? '(none)')
+  if (parkConfig?.logoUrl) {
+    const logoAbsUrl = `${getServerBaseUrl()}${parkConfig.logoUrl}`
+    console.log('[PDF] Resolved logo URL =', logoAbsUrl)
+    const dataUrl = await loadImageAsDataUrl(logoAbsUrl)
+    if (dataUrl) {
+      console.log('[PDF] Logo inserted into PDF')
+      const logoH = 16
+      const logoW = 40
+      const imgFmt = dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')
+        ? 'JPEG'
+        : dataUrl.startsWith('data:image/webp')
+          ? 'WEBP'
+          : 'PNG'
+      doc.addImage(dataUrl, imgFmt, (pageW - logoW) / 2, startY, logoW, logoH)
+      startY += logoH + 3
+    } else {
+      console.warn('[PDF] Logo not inserted — loadImageAsDataUrl returned null')
+    }
+  }
 
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.text(PARK_NAME, pageW / 2, 18, { align: 'center' })
+  doc.text(parkName, pageW / 2, startY + 5, { align: 'center' })
+  startY += 9
 
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.text(PARK_CODE, pageW / 2, 23, { align: 'center' })
+  if (parkSubtitle) {
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.text(parkSubtitle, pageW / 2, startY, { align: 'center' })
+    startY += 4
+  }
+
+  const contactParts: string[] = []
+  if (address) contactParts.push(address)
+  if (phone) contactParts.push(`Tel: ${phone}`)
+  if (email) contactParts.push(email)
+  if (contactParts.length > 0) {
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100)
+    doc.text(contactParts.join('  |  '), pageW / 2, startY, { align: 'center' })
+    doc.setTextColor(0)
+    startY += 4
+  }
 
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
-  doc.text(title, pageW / 2, 31, { align: 'center' })
+  doc.text(title, pageW / 2, startY + 2, { align: 'center' })
 
+  const lineY = startY + 6
   doc.setDrawColor(180, 180, 180)
-  doc.line(14, 34, pageW - 14, 34)
+  doc.line(14, lineY, pageW - 14, lineY)
 
-  return 40 // y position after header
+  return lineY + 6
 }
 
 function drawFooter(doc: JsPDF) {
@@ -62,12 +154,12 @@ function row(doc: JsPDF, label: string, value: string, y: number, labelX = 14, v
 
 // ─── RECEIPT PDF ────────────────────────────────────────────────────────────
 
-export async function downloadReceiptPdf(receipt: Receipt): Promise<void> {
+export async function downloadReceiptPdf(receipt: Receipt, parkConfig?: ParkConfig | null): Promise<void> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
 
-  let y = drawHeader(doc, 'RECIBO DE PAGO')
+  let y = await drawHeader(doc, 'RECIBO DE PAGO', parkConfig)
 
   // Metadata block
   y = row(doc, 'No. Recibo:', receipt.receiptNumber, y)
@@ -114,6 +206,33 @@ export async function downloadReceiptPdf(receipt: Receipt): Promise<void> {
   doc.line(14, y, pageW - 14, y)
   y += 6
 
+  // Subtotal / discount block
+  if (receipt.discountAmount != null && toNum(receipt.discountAmount) > 0) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    if (receipt.subtotal != null) {
+      doc.text('Subtotal:', 14, y)
+      doc.text(fmtQ(receipt.subtotal), pageW - 14, y, { align: 'right' })
+      y += 5
+    }
+    const discLabel = receipt.discountType === 'PERCENTAGE' && receipt.discountPercentage
+      ? `Descuento (${receipt.discountPercentage}%):`
+      : receipt.discountType === 'AMOUNT'
+        ? 'Descuento (Q fijo):'
+        : 'Descuento:'
+    doc.text(discLabel, 14, y)
+    doc.text(`-${fmtQ(receipt.discountAmount)}`, pageW - 14, y, { align: 'right' })
+    if (receipt.discountReason) {
+      y += 4
+      doc.setFontSize(8)
+      doc.setTextColor(100)
+      doc.text(`Motivo: ${receipt.discountReason}`, 16, y)
+      doc.setTextColor(0)
+      doc.setFontSize(9)
+    }
+    y += 5
+  }
+
   // Total block
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
@@ -156,6 +275,7 @@ interface ReportPdfOpts {
   general?: Record<string, unknown>
   visitors?: Record<string, unknown>[]
   income?: Record<string, unknown>[]
+  parkConfig?: ParkConfig | null
 }
 
 export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
@@ -164,7 +284,7 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
   const pageW = doc.internal.pageSize.getWidth()
 
   const tabLabel = { general: 'Reporte General', visitors: 'Reporte de Visitantes', income: 'Reporte de Ingresos' }[opts.tab]
-  let y = drawHeader(doc, tabLabel)
+  let y = await drawHeader(doc, tabLabel, opts.parkConfig)
 
   // Date range
   doc.setFont('helvetica', 'normal')

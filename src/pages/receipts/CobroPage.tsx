@@ -10,6 +10,7 @@ import { catalogsApi } from '@/api/catalogs.api'
 import { visitorsApi } from '@/api/visitors.api'
 import { vehiclesApi } from '@/api/vehicles.api'
 import { lodgingApi } from '@/api/lodging.api'
+import { parkConfigApi } from '@/api/parkConfig.api'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -18,7 +19,7 @@ import { Select } from '@/components/ui/Select'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { formatCurrency, toNum } from '@/utils/formatters'
 import { downloadReceiptPdf } from '@/utils/pdf'
-import { getApiErrorMessage } from '@/api/client'
+import { getApiErrorMessage, getServerBaseUrl } from '@/api/client'
 import { useToast } from '@/hooks/useToast'
 import type { ReceiptOriginType, Receipt } from '@/types/receipts'
 import styles from './CobroPage.module.css'
@@ -38,7 +39,24 @@ const schema = z.object({
   paymentMethodId: z.coerce.number().min(1, 'Selecciona método de pago'),
   amountReceived: z.coerce.number().min(0).optional(),
   paymentReference: z.string().optional(),
+  discountType: z.enum(['PERCENTAGE', 'AMOUNT']).default('PERCENTAGE'),
+  discountValue: z.coerce.number().min(0).optional(),
+  discountReason: z.string().optional(),
   lines: z.array(lineSchema).min(1, 'Agrega al menos una línea'),
+}).superRefine((data, ctx) => {
+  const dv = data.discountValue ?? 0
+  const subtotal = (data.lines ?? []).reduce((s, l) => s + (l.total ?? 0), 0)
+  if (dv > 0) {
+    if (data.discountType === 'PERCENTAGE' && dv > 100) {
+      ctx.addIssue({ code: 'custom', path: ['discountValue'], message: 'El porcentaje no puede superar 100' })
+    }
+    if (data.discountType === 'AMOUNT' && dv > subtotal) {
+      ctx.addIssue({ code: 'custom', path: ['discountValue'], message: 'El descuento no puede superar el subtotal' })
+    }
+    if (!data.discountReason?.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['discountReason'], message: 'El motivo es obligatorio cuando hay descuento' })
+    }
+  }
 })
 type FormValues = z.infer<typeof schema>
 
@@ -77,6 +95,13 @@ export default function CobroPage() {
     staleTime: 10 * 60 * 1000,
   })
 
+  const { data: parkConfig } = useQuery({
+    queryKey: ['park-config'],
+    queryFn: parkConfigApi.get,
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  })
+
   const { data: concepts = [] } = useQuery({
     queryKey: ['catalogs/financial-concepts-income'],
     queryFn: () => catalogsApi.financialConcepts.list({ isActive: true, type: 'INGRESO' }),
@@ -110,9 +135,18 @@ export default function CobroPage() {
   const watchLines = watch('lines')
   const watchPaymentMethod = watch('paymentMethodId')
   const watchAmountReceived = watch('amountReceived') ?? 0
+  const watchDiscountType = watch('discountType') ?? 'PERCENTAGE'
+  const watchDiscountValue = watch('discountValue') ?? 0
 
   const subtotal = watchLines?.reduce((sum, l) => sum + (Number(l.total) || 0), 0) ?? 0
-  const change = Math.max(0, Number(watchAmountReceived) - subtotal)
+  const discountAmount = (() => {
+    const dv = Number(watchDiscountValue)
+    if (!dv || dv <= 0) return 0
+    if (watchDiscountType === 'PERCENTAGE') return parseFloat((subtotal * Math.min(dv, 100) / 100).toFixed(2))
+    return Math.min(dv, subtotal)
+  })()
+  const grandTotal = Math.max(0, subtotal - discountAmount)
+  const change = Math.max(0, Number(watchAmountReceived) - grandTotal)
 
   useEffect(() => {
     watchLines?.forEach((line, i) => {
@@ -172,14 +206,13 @@ export default function CobroPage() {
   })
 
   async function onSubmit(values: FormValues) {
-    const lineTotal = toNum(subtotal)
     const selectedMethod = paymentMethods.find(
       (m) => String(m.id) === String(values.paymentMethodId),
     )
     if (selectedMethod?.name?.toLowerCase().includes('efectivo')) {
       const received = toNum(values.amountReceived)
-      if (received < lineTotal) {
-        setError('amountReceived', { message: `Monto insuficiente (total: ${formatCurrency(lineTotal)})` })
+      if (received < grandTotal) {
+        setError('amountReceived', { message: `Monto insuficiente (total: ${formatCurrency(grandTotal)})` })
         return
       }
     }
@@ -190,7 +223,12 @@ export default function CobroPage() {
       contributorDocument: values.contributorDocument || undefined,
       contributorAddress: values.contributorAddress || undefined,
       paymentMethodId: Number(values.paymentMethodId),
-      total: lineTotal,
+      subtotal: subtotal > 0 ? subtotal : undefined,
+      discountType: discountAmount > 0 ? values.discountType : undefined,
+      discountValue: discountAmount > 0 ? Number(values.discountValue) : undefined,
+      discountAmount: discountAmount > 0 ? discountAmount : undefined,
+      discountReason: discountAmount > 0 ? (values.discountReason || undefined) : undefined,
+      total: grandTotal,
       amountReceived: values.amountReceived ? toNum(values.amountReceived) : undefined,
       changeAmount: change > 0 ? toNum(change) : undefined,
       paymentReference: values.paymentReference || undefined,
@@ -222,6 +260,21 @@ export default function CobroPage() {
             <div className={styles.successNumber}>No. {issuedReceipt.receiptNumber}</div>
           </div>
           <div className={styles.receiptPreview}>
+            {parkConfig?.logoUrl && (
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <img
+                  src={`${getServerBaseUrl()}${parkConfig.logoUrl}`}
+                  alt="Logo"
+                  style={{ maxHeight: 56, maxWidth: 160, objectFit: 'contain' }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              </div>
+            )}
+            {parkConfig?.parkName && (
+              <div style={{ textAlign: 'center', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 4 }}>
+                {parkConfig.parkName}
+              </div>
+            )}
             <div className={styles.receiptRow}>
               <span>Contribuyente</span>
               <span>{issuedReceipt.contributorName ?? '—'}</span>
@@ -232,6 +285,22 @@ export default function CobroPage() {
                 <span>{formatCurrency(line.total)}</span>
               </div>
             ))}
+            {Number(issuedReceipt.discountAmount) > 0 && (
+              <>
+                <div className={styles.receiptRow}>
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(issuedReceipt.subtotal ?? issuedReceipt.total)}</span>
+                </div>
+                <div className={styles.receiptRow} style={{ color: 'var(--color-success, #16a34a)' }}>
+                  <span>
+                    {issuedReceipt.discountType === 'PERCENTAGE'
+                      ? `Descuento (${issuedReceipt.discountPercentage}%)`
+                      : 'Descuento (Q fijo)'}
+                  </span>
+                  <span>−{formatCurrency(issuedReceipt.discountAmount!)}</span>
+                </div>
+              </>
+            )}
             <div className={styles.receiptTotal}>
               <span>Total</span>
               <span>{formatCurrency(issuedReceipt.total)}</span>
@@ -244,7 +313,7 @@ export default function CobroPage() {
             )}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <Button variant="secondary" onClick={() => downloadReceiptPdf(issuedReceipt)}>
+            <Button variant="secondary" onClick={() => downloadReceiptPdf(issuedReceipt, parkConfig)}>
               Descargar PDF
             </Button>
             <Button variant="secondary" onClick={() => receiptsApi.triggerPrint(issuedReceipt.id)}>
@@ -358,6 +427,43 @@ export default function CobroPage() {
           </Card>
 
           <Card style={{ marginTop: 14 }}>
+            <div className={styles.sectionLabel}>Descuento (opcional)</div>
+            <div className={styles.discountRow}>
+              <div className={styles.discountTypeCol}>
+                <span className={styles.discountTypeLabel}>Tipo</span>
+                <div className={styles.segmented}>
+                  <button
+                    type="button"
+                    className={[styles.segBtn, watchDiscountType === 'PERCENTAGE' ? styles.segBtnActive : ''].filter(Boolean).join(' ')}
+                    onClick={() => setValue('discountType', 'PERCENTAGE')}
+                  >%</button>
+                  <button
+                    type="button"
+                    className={[styles.segBtn, watchDiscountType === 'AMOUNT' ? styles.segBtnActive : ''].filter(Boolean).join(' ')}
+                    onClick={() => setValue('discountType', 'AMOUNT')}
+                  >Q</button>
+                </div>
+              </div>
+              <Input
+                label={watchDiscountType === 'PERCENTAGE' ? 'Valor (%)' : 'Valor (Q)'}
+                type="number"
+                step="0.01"
+                min="0"
+                max={watchDiscountType === 'PERCENTAGE' ? 100 : undefined}
+                placeholder="0"
+                error={errors.discountValue?.message}
+                {...register('discountValue')}
+              />
+              <Input
+                label={`Motivo${discountAmount > 0 ? ' *' : ''}`}
+                placeholder="Razón del descuento aplicado"
+                error={errors.discountReason?.message}
+                {...register('discountReason')}
+              />
+            </div>
+          </Card>
+
+          <Card style={{ marginTop: 14 }}>
             <div className={styles.sectionLabel}>Pago</div>
             <div className={styles.formGrid2}>
               <Select
@@ -403,9 +509,25 @@ export default function CobroPage() {
               ))}
             </div>
             <div className={styles.summaryDivider} />
+            {discountAmount > 0 && (
+              <>
+                <div className={styles.summaryRow}>
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(subtotal)}</span>
+                </div>
+                <div className={styles.summaryRow} style={{ color: 'var(--color-success, #16a34a)' }}>
+                  <span>
+                    {watchDiscountType === 'PERCENTAGE'
+                      ? `Descuento (${watchDiscountValue}%)`
+                      : `Descuento (Q fijo)`}
+                  </span>
+                  <span>−{formatCurrency(discountAmount)}</span>
+                </div>
+              </>
+            )}
             <div className={styles.summaryTotal}>
               <span>Total</span>
-              <span>{formatCurrency(subtotal)}</span>
+              <span>{formatCurrency(grandTotal)}</span>
             </div>
             {isEffectivo && Number(watchAmountReceived) > 0 && (
               <>
@@ -460,9 +582,9 @@ export default function CobroPage() {
               variant="primary"
               style={{ width: '100%', marginTop: 16 }}
               onClick={handleSubmit(onSubmit)}
-              disabled={isSubmitting || createMutation.isPending || subtotal <= 0}
+              disabled={isSubmitting || createMutation.isPending || grandTotal <= 0}
             >
-              {isSubmitting || createMutation.isPending ? 'Emitiendo…' : `Emitir recibo — ${formatCurrency(subtotal)}`}
+              {isSubmitting || createMutation.isPending ? 'Emitiendo…' : `Emitir recibo — ${formatCurrency(grandTotal)}`}
             </Button>
           </Card>
         </div>

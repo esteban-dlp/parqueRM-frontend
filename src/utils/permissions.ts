@@ -55,6 +55,9 @@ export const PERMISSIONS = {
 
   // Auditoría
   AUDIT_READ: 'AUDIT_READ',
+
+  // Tarifas
+  TARIFF_OVERRIDE: 'TARIFF_OVERRIDE',
 } as const
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

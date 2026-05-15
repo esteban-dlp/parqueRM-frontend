@@ -14,6 +14,16 @@ export const parkConfigApi = {
       .patch<ApiResponse<ParkConfig>>('/park-config', dto)
       .then(unwrap),
 
+  uploadLogo: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return apiClient
+      .post<ApiResponse<{ logoUrl: string }>>('/park-config/logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then(unwrap)
+  },
+
   listServices: () =>
     apiClient
       .get<ApiResponse<ParkService[]>>('/park-config/services')

@@ -186,6 +186,63 @@
   color: var(--success);
 }
 
+/* Discount section */
+.discountRow {
+  display: grid;
+  grid-template-columns: auto 140px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 600px) {
+  .discountRow { grid-template-columns: auto 1fr; }
+  .discountRow > *:last-child { grid-column: 1 / -1; }
+}
+
+.discountTypeCol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.discountTypeLabel {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+  line-height: 1.4;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  height: 38px;
+}
+
+.segBtn {
+  padding: 0 14px;
+  border: none;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  font-family: var(--font);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.segBtn + .segBtn {
+  border-left: 1px solid var(--border);
+}
+
+.segBtnActive {
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
 .errorBox {
   background: var(--danger-light);
   border: 1px solid var(--danger-border);

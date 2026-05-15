@@ -98,6 +98,14 @@ export default function ReceiptsPage() {
       render: (r: Receipt) => formatCurrency(r.total),
     },
     {
+      key: 'discount',
+      header: 'Descuento',
+      render: (r: Receipt) =>
+        r.discountAmount && Number(r.discountAmount) > 0
+          ? <span style={{ color: 'var(--color-warning)' }}>-{formatCurrency(Number(r.discountAmount))}</span>
+          : <span style={{ color: 'var(--text-muted)' }}>—</span>,
+    },
+    {
       key: 'paymentMethod',
       header: 'Pago',
       render: (r: Receipt) => r.paymentMethod?.name ?? '—',

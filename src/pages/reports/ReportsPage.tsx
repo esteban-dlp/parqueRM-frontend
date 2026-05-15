@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { reportsApi } from '@/api/reports.api'
+import { parkConfigApi } from '@/api/parkConfig.api'
 import { downloadReportPdf } from '@/utils/pdf'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -55,6 +56,13 @@ export default function ReportsPage() {
     enabled: tab === 'income',
   })
 
+  const { data: parkConfig } = useQuery({
+    queryKey: ['park-config'],
+    queryFn: parkConfigApi.get,
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  })
+
   async function handleExportExcel() {
     if (tab === 'visitors') {
       const rows = (visitorsData?.data ?? []) as unknown as Record<string, unknown>[]
@@ -99,6 +107,7 @@ export default function ReportsPage() {
       general: general as unknown as Record<string, unknown> | undefined,
       visitors: (visitorsData?.data ?? []) as unknown as Record<string, unknown>[],
       income: (incomeData?.data ?? []) as Record<string, unknown>[],
+      parkConfig,
     })
   }
 

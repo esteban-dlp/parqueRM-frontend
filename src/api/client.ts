@@ -15,6 +15,15 @@ import type { ApiResponse } from '@/types/api'
 
 const BASE_URL = import.meta.env.VITE_API_URL as string
 
+/**
+ * Devuelve la URL base del servidor (sin el prefijo /api).
+ * Úsala para construir rutas de archivos estáticos como logos:
+ *   getServerBaseUrl() + '/uploads/logos/logo.png'
+ */
+export function getServerBaseUrl(): string {
+  return BASE_URL.replace(/\/api\/?$/, '')
+}
+
 // ─── Claves de localStorage ───────────────────────────────────────────────────
 const ACCESS_TOKEN_KEY = 'prm_access'
 const REFRESH_TOKEN_KEY = 'prm_refresh'

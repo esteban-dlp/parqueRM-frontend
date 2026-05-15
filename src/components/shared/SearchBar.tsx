@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
+import { useDebouncedCallback } from '@/hooks/useDebounce'
 import styles from './SearchBar.module.css'
 
 interface Props {
@@ -10,15 +11,13 @@ interface Props {
 export function SearchBar({ placeholder = 'Buscar…', onSearch, debounceMs = 400 }: Props) {
   const [value, setValue] = useState('')
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const q = e.target.value
-      setValue(q)
-      const timer = setTimeout(() => onSearch(q), debounceMs)
-      return () => clearTimeout(timer)
-    },
-    [onSearch, debounceMs],
-  )
+  const debouncedSearch = useDebouncedCallback(onSearch, debounceMs)
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const q = e.target.value
+    setValue(q)
+    debouncedSearch(q)
+  }
 
   return (
     <div className={styles.wrap}>

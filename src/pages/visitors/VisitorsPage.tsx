@@ -30,16 +30,22 @@ import type { VisitorRecord } from '@/types/visitors'
 import type { PaginatedMeta } from '@/types/api'
 import styles from './VisitorsPage.module.css'
 
+// Helper: select vacío ("") → undefined; valor numérico válido → number
+const optionalId = z.preprocess(
+  (v) => (v === '' || v === '0' || v === 0 || v === null ? undefined : v),
+  z.coerce.number().positive().optional(),
+)
+
 const schema = z.object({
   visitorCategoryId: z.coerce.number().min(1, 'Selecciona categoría'),
   quantity: z.coerce.number().min(1).default(1),
   appliedRate: z.coerce.number().min(0, 'Tarifa requerida'),
   totalAmount: z.coerce.number().min(0),
-  countryId: z.coerce.number().optional(),
-  departmentId: z.coerce.number().optional(),
-  municipalityId: z.coerce.number().optional(),
-  infoSourceId: z.coerce.number().optional(),
-  travelTypeId: z.coerce.number().optional(),
+  countryId: optionalId,
+  departmentId: optionalId,
+  municipalityId: optionalId,
+  infoSourceId: optionalId,
+  travelTypeId: optionalId,
   nationality: z.string().optional(),
   identificationType: z.string().optional(),
   identificationNumber: z.string().optional(),
@@ -70,6 +76,7 @@ export default function VisitorsPage() {
   const canUpdate = usePermission(PERMISSIONS.VISITANTES_UPDATE)
   const canCheckout = usePermission(PERMISSIONS.VISITANTES_CHECKOUT)
   const canCobrar = usePermission(PERMISSIONS.RECEIPTS_CREATE)
+  const canOverrideTariff = usePermission(PERMISSIONS.TARIFF_OVERRIDE)
 
   const { data, isLoading } = useQuery({
     queryKey: ['visitors', page, filterSearch, filterFrom, filterTo, filterCategoryId],
@@ -273,9 +280,18 @@ export default function VisitorsPage() {
       quantity: Number(values.quantity) || 1,
       appliedRate: Number(values.appliedRate),
       totalAmount: Number(values.totalAmount),
-      countryId: values.countryId ? Number(values.countryId) : undefined,
-      departmentId: values.departmentId ? Number(values.departmentId) : undefined,
-      municipalityId: values.municipalityId ? Number(values.municipalityId) : undefined,
+      countryId: values.countryId || undefined,
+      departmentId: values.departmentId || undefined,
+      municipalityId: values.municipalityId || undefined,
+      infoSourceId: values.infoSourceId || undefined,
+      travelTypeId: values.travelTypeId || undefined,
+      gender: values.gender || undefined,
+      ageRange: values.ageRange || undefined,
+      visitType: values.visitType || undefined,
+      nationality: values.nationality || undefined,
+      identificationType: values.identificationType || undefined,
+      identificationNumber: values.identificationNumber || undefined,
+      fullName: values.fullName || undefined,
     }
     if (editId) {
       await updateMutation.mutateAsync({ id: editId, dto })
@@ -495,7 +511,9 @@ export default function VisitorsPage() {
             min="0"
             hint={resolvedTariff ? `Tarifa vigente: ${resolvedTariff.name}` : undefined}
             error={errors.appliedRate?.message}
-            {...register('appliedRate', { onChange: handleQtyOrRateChange })}
+            readOnly={!canOverrideTariff}
+            style={!canOverrideTariff ? { background: 'var(--surface-raised)', cursor: 'not-allowed' } : undefined}
+            {...register('appliedRate', { onChange: canOverrideTariff ? handleQtyOrRateChange : undefined })}
           />
           <div className={styles.ticketBox} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div className={styles.ticketRow}>

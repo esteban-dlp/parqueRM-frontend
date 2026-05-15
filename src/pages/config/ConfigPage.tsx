@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { parkConfigApi } from '@/api/parkConfig.api'
@@ -18,6 +18,9 @@ export default function ConfigPage() {
   const canEdit = usePermission(PERMISSIONS.CONFIG_UPDATE)
   const qc = useQueryClient()
   const toast = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const { data: config, isLoading, isError } = useQuery({
     queryKey: ['park-config'],
@@ -64,6 +67,23 @@ export default function ConfigPage() {
     mutationFn: (id: number) => parkConfigApi.toggleService(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['park-config/services'] }),
   })
+
+  async function onLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const result = await parkConfigApi.uploadLogo(file)
+      qc.invalidateQueries({ queryKey: ['park-config'] })
+      setLogoPreview(result.logoUrl)
+      toast.success('Logo subido correctamente')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Error al subir el logo'))
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   async function onSubmit(values: UpdateParkConfigDto) {
     const dto: UpdateParkConfigDto = {
@@ -131,7 +151,39 @@ export default function ConfigPage() {
             <Input label="Teléfono" {...register('phone')} />
             <Input label="Correo electrónico" type="email" {...register('email')} />
           </div>
-          <Input label="URL del logo" {...register('logoUrl')} />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 6 }}>Logo del parque</div>
+            {(logoPreview || config?.logoUrl) && (
+              <img
+                src={logoPreview ?? config!.logoUrl!}
+                alt="Logo actual"
+                style={{ height: 64, maxWidth: 240, objectFit: 'contain', borderRadius: 6, border: '1px solid var(--border)', marginBottom: 8 }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.svg,.webp"
+                style={{ display: 'none' }}
+                onChange={onLogoFileChange}
+              />
+              {canEdit && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? 'Subiendo…' : 'Subir logo'}
+                </Button>
+              )}
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                JPG, PNG, SVG o WEBP · máx. 2 MB
+              </span>
+            </div>
+          </div>
           <Input label="URL de la red local (LAN)" {...register('systemLanUrl')} />
 
           {canEdit && (

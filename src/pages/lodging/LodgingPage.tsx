@@ -54,6 +54,7 @@ export default function LodgingPage() {
   const canCreate = usePermission(PERMISSIONS.HOSPEDAJE_CREATE)
   const canUpdate = usePermission(PERMISSIONS.HOSPEDAJE_UPDATE)
   const canCobrar = usePermission(PERMISSIONS.RECEIPTS_CREATE)
+  const canOverrideTariff = usePermission(PERMISSIONS.TARIFF_OVERRIDE)
 
   const { data, isLoading } = useQuery({
     queryKey: ['lodging', page, filterFrom, filterTo, filterTypeId],
@@ -362,6 +363,8 @@ export default function LodgingPage() {
             step="0.01"
             min="0"
             hint={resolvedTariff ? `Tarifa vigente: ${resolvedTariff.name}` : undefined}
+            readOnly={!canOverrideTariff}
+            style={!canOverrideTariff ? { background: 'var(--surface-raised)', cursor: 'not-allowed' } : undefined}
             {...register('appliedRate')}
           />
         </div>

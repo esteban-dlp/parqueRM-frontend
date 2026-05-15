@@ -55,6 +55,7 @@ export default function VehiclesPage() {
   const canUpdate = usePermission(PERMISSIONS.VEHICULOS_UPDATE)
   const canEnableExit = usePermission(PERMISSIONS.VEHICULOS_ENABLE_EXIT)
   const canCobrar = usePermission(PERMISSIONS.RECEIPTS_CREATE)
+  const canOverrideTariff = usePermission(PERMISSIONS.TARIFF_OVERRIDE)
 
   const { data, isLoading } = useQuery({
     queryKey: ['vehicles', page, filterSearch, filterFrom, filterTo, filterTypeId],
@@ -382,6 +383,8 @@ export default function VehiclesPage() {
             step="0.01"
             min="0"
             hint={resolvedTariff ? `Tarifa: ${resolvedTariff.name}` : undefined}
+            readOnly={!canOverrideTariff}
+            style={!canOverrideTariff ? { background: 'var(--surface-raised)', cursor: 'not-allowed' } : undefined}
             {...register('appliedRate')}
           />
           <Input label="Total (Q)" type="number" step="0.01" min="0" {...register('totalAmount')} />
