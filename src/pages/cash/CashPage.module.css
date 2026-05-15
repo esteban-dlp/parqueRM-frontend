@@ -2,7 +2,15 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
-  margin-bottom: 24px;
+  margin-bottom: 22px;
+}
+
+@media (max-width: 640px) {
+  .summaryRow { grid-template-columns: 1fr; gap: 10px; }
+}
+
+@media (min-width: 641px) and (max-width: 860px) {
+  .summaryRow { grid-template-columns: 1fr 1fr; }
 }
 
 .sumCard {
@@ -37,6 +45,10 @@
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+  .formGrid2 { grid-template-columns: 1fr; }
 }
 
 .errorBox {

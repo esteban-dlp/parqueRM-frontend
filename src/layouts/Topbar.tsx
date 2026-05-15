@@ -19,7 +19,11 @@ const ROUTE_LABELS: Record<string, string> = {
   '/auditoria': 'Sistema / Auditoría',
 }
 
-export function Topbar() {
+interface TopbarProps {
+  onMenuToggle: () => void
+}
+
+export function Topbar({ onMenuToggle }: TopbarProps) {
   const location = useLocation()
   const label = ROUTE_LABELS[location.pathname] ?? 'Parque RM'
 
@@ -33,10 +37,21 @@ export function Topbar() {
 
   return (
     <div className={styles.topbar}>
+      <button
+        className={styles.menuBtn}
+        onClick={onMenuToggle}
+        aria-label="Abrir menú"
+      >
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <line x1="2" y1="4.5" x2="16" y2="4.5" />
+          <line x1="2" y1="9" x2="16" y2="9" />
+          <line x1="2" y1="13.5" x2="16" y2="13.5" />
+        </svg>
+      </button>
       <span className={styles.breadcrumb}>
         {parts.length > 1 ? (
           <>
-            {parts.slice(0, -1).join(' / ')}
+            <span className={styles.breadcrumbParent}>{parts.slice(0, -1).join(' / ')}</span>
             <span className={styles.breadcrumbSep}>/</span>
             <span className={styles.breadcrumbCurrent}>{parts[parts.length - 1]}</span>
           </>
@@ -50,7 +65,7 @@ export function Topbar() {
             <circle cx="8" cy="8" r="6" />
             <path d="M8 5v3l2 2" />
           </svg>
-          {currentDate}
+          <span className={styles.dateText}>{currentDate}</span>
         </span>
       </div>
     </div>

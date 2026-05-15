@@ -29,7 +29,8 @@
       "Skill(mempalace:search)",
       "Skill(mempalace:mempalace)",
       "mcp__plugin_mempalace_mempalace__mempalace_list_wings",
-      "mcp__plugin_mempalace_mempalace__mempalace_search"
+      "mcp__plugin_mempalace_mempalace__mempalace_search",
+      "Bash(npx tsc *)"
     ]
   },
   "enabledMcpjsonServers": [

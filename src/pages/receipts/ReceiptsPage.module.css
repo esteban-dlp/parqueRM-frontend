@@ -3,4 +3,12 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .toolbar > * {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }

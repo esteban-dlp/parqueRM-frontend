@@ -2,11 +2,15 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  margin-bottom: 24px;
+  margin-bottom: 22px;
 }
 
 @media (max-width: 960px) {
   .statsRow { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .statsRow { grid-template-columns: 1fr 1fr; gap: 10px; }
 }
 
 .statCard {
@@ -15,12 +19,10 @@
   border-radius: var(--radius-lg);
   padding: 16px 18px;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--transition-base), transform var(--transition-base);
 }
 
 .statCard:hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
 }
 
 .statLabel {
@@ -73,7 +75,7 @@
 }
 
 .occupancyBar {
-  height: 8px;
+  height: 7px;
   background: var(--surface-sunken);
   border-radius: var(--radius-full);
   overflow: hidden;
@@ -83,7 +85,6 @@
   height: 100%;
   border-radius: var(--radius-full);
   background: linear-gradient(90deg, var(--primary) 0%, #2d6a47 100%);
-  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .occupancyMeta {
@@ -105,8 +106,8 @@
 .movementRow:last-child { border-bottom: none; }
 
 .movType {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -114,8 +115,8 @@
 .movTypeIn  { background: var(--success); }
 .movTypeOut { background: var(--danger); }
 
-.movDesc { flex: 1; color: var(--text); }
-.movAmt  { font-weight: 600; }
+.movDesc { flex: 1; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.movAmt  { font-weight: 600; flex-shrink: 0; }
 .movAmtIn  { color: var(--success); }
 .movAmtOut { color: var(--danger); }
-.movTime { font-size: var(--text-xs); color: var(--text-muted); }
+.movTime { font-size: var(--text-xs); color: var(--text-muted); flex-shrink: 0; }

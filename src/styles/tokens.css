@@ -7,12 +7,12 @@
   /* ─── Sidebar ─── */
   --sidebar-bg: #1a3a2a;
   --sidebar-hover: rgba(255, 255, 255, 0.08);
-  --sidebar-active-bg: rgba(255, 255, 255, 0.14);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.15);
   --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-text: rgba(255, 255, 255, 0.65);
+  --sidebar-text: rgba(255, 255, 255, 0.68);
   --sidebar-text-active: #ffffff;
   --sidebar-text-muted: rgba(255, 255, 255, 0.3);
-  --sidebar-label: rgba(255, 255, 255, 0.35);
+  --sidebar-label: rgba(255, 255, 255, 0.38);
   --sidebar-width: 234px;
 
   /* ─── Acento ─── */
@@ -20,25 +20,26 @@
   --accent-dim: rgba(74, 222, 128, 0.18);
 
   /* ─── Superficies ─── */
-  --bg: #f3f4f1;
+  --bg: #f2f3f0;
   --surface: #ffffff;
   --surface-raised: #f8f9f7;
-  --surface-sunken: #eef0ec;
+  --surface-sunken: #eceeed;
 
   /* ─── Bordes ─── */
-  --border: #e2e4de;
-  --border-medium: #c5c9c1;
+  --border: #e0e2dc;
+  --border-medium: #c2c6be;
 
   /* ─── Texto ─── */
-  --text: #181a18;
-  --text-secondary: #595c57;
-  --text-muted: #9a9d98;
+  --text: #18201a;
+  --text-secondary: #4e5450;
+  --text-muted: #8c9090;
 
   /* ─── Color primario (botones, highlights) ─── */
   --primary: #1a3a2a;
   --primary-hover: #1f4a34;
   --primary-active: #163020;
   --primary-text: #ffffff;
+  --primary-surface: #f0f7f3;
 
   /* ─── Estado success ─── */
   --success: #166534;
@@ -71,8 +72,8 @@
   --badge-purple-text: #5b21b6;
   --badge-red-bg: #fee2e2;
   --badge-red-text: #991b1b;
-  --badge-gray-bg: #f1f2ef;
-  --badge-gray-text: #595c57;
+  --badge-gray-bg: #f1f3ef;
+  --badge-gray-text: #4e5450;
 
   /* ─── Tipografía ─── */
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -96,17 +97,17 @@
   --space-8: 32px;
 
   /* ─── Radios ─── */
-  --radius-sm: 6px;
+  --radius-sm: 5px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-full: 9999px;
 
   /* ─── Sombras ─── */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.09), 0 4px 8px rgba(0, 0, 0, 0.05);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.05);
 
   /* ─── Transiciones ─── */
   --transition-fast: 0.1s ease;
@@ -114,8 +115,12 @@
   --transition-slow: 0.25s ease;
 
   /* ─── Focus ring ─── */
-  --focus-ring: 0 0 0 3px rgba(26, 58, 42, 0.14);
+  --focus-ring: 0 0 0 3px rgba(26, 58, 42, 0.16);
 
   /* ─── Layout ─── */
   --topbar-height: 56px;
+
+  /* ─── Input / control heights ─── */
+  --input-height: 36px;
+  --input-height-lg: 40px;
 }

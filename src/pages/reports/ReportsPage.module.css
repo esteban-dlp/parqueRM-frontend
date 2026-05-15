@@ -3,6 +3,7 @@
   align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 
 .exportBtns {
@@ -10,6 +11,14 @@
   gap: 6px;
   margin-left: auto;
   align-self: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .exportBtns {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 .tabs {
@@ -20,7 +29,9 @@
   padding: 3px;
   margin-bottom: 16px;
   width: fit-content;
+  max-width: 100%;
   border: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
 .tab {
@@ -30,10 +41,11 @@
   font-family: var(--font);
   font-size: var(--text-sm);
   color: var(--text-secondary);
-  padding: 6px 16px;
+  padding: 5px 14px;
   border-radius: calc(var(--radius-md) - 2px);
   transition: background var(--transition-fast), color var(--transition-fast);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .tab:hover { color: var(--text); background: rgba(0, 0, 0, 0.03); }
@@ -68,6 +80,7 @@
   border-bottom: 1px solid var(--border);
   font-size: var(--text-base);
   color: var(--text);
+  gap: 8px;
 }
 
 .reportRow:last-child { border-bottom: none; }
@@ -76,6 +89,7 @@
   display: flex;
   gap: 16px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .reportCount {

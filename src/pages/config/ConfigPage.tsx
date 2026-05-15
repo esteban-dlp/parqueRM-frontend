@@ -9,10 +9,30 @@ import { Loading } from '@/components/ui/Loading'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
-import { getApiErrorMessage } from '@/api/client'
+import { getApiErrorMessage, buildLogoUrl } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
-import type { UpdateParkConfigDto } from '@/types/parkConfig'
+import type { ParkConfig, UpdateParkConfigDto } from '@/types/parkConfig'
 import styles from './ConfigPage.module.css'
+
+const HEX_REGEX = /^#[0-9A-Fa-f]{6}$/
+const SIDEBAR_COLOR_FALLBACK = '#1A3A2A'
+
+function buildFormDefaults(config: ParkConfig | null): UpdateParkConfigDto & { sidebarColorHex: string } {
+  return {
+    parkName: config?.parkName ?? '',
+    parkSubtitle: config?.parkSubtitle ?? '',
+    sigapCode: config?.sigapCode ?? '',
+    department: config?.department ?? '',
+    municipality: config?.municipality ?? '',
+    address: config?.address ?? '',
+    phone: config?.phone ?? '',
+    email: config?.email ?? '',
+    logoUrl: config?.logoUrl ?? '',
+    maxCapacity: config?.maxCapacity ?? 150,
+    systemLanUrl: config?.systemLanUrl ?? '',
+    sidebarColorHex: config?.sidebarColorHex ?? SIDEBAR_COLOR_FALLBACK,
+  }
+}
 
 export default function ConfigPage() {
   const canEdit = usePermission(PERMISSIONS.CONFIG_UPDATE)
@@ -21,8 +41,13 @@ export default function ConfigPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [colorDraft, setColorDraft] = useState(SIDEBAR_COLOR_FALLBACK)
 
-  const { data: config, isLoading, isError } = useQuery({
+  // data puede ser:
+  //   undefined  → todavía cargando
+  //   null       → cargado, no existe registro en DB
+  //   ParkConfig → cargado, configuración existente
+  const { data: config, isLoading, isError, error } = useQuery<ParkConfig | null>({
     queryKey: ['park-config'],
     queryFn: parkConfigApi.get,
     retry: false,
@@ -33,24 +58,15 @@ export default function ConfigPage() {
     queryFn: parkConfigApi.listServices,
   })
 
-  const { register, handleSubmit, reset, formState: { isSubmitting, isDirty } } =
+  const { register, handleSubmit, reset, setValue, formState: { isSubmitting, isDirty } } =
     useForm<UpdateParkConfigDto>()
 
+  // Inicializar formulario cuando llegan datos (o cuando se confirma que no hay datos)
   useEffect(() => {
-    if (config) {
-      reset({
-        parkName: config.parkName ?? '',
-        parkSubtitle: config.parkSubtitle ?? '',
-        sigapCode: config.sigapCode ?? '',
-        department: config.department ?? '',
-        municipality: config.municipality ?? '',
-        address: config.address ?? '',
-        phone: config.phone ?? '',
-        email: config.email ?? '',
-        logoUrl: config.logoUrl ?? '',
-        maxCapacity: config.maxCapacity,
-        systemLanUrl: config.systemLanUrl ?? '',
-      })
+    if (config !== undefined) {
+      const defaults = buildFormDefaults(config)
+      reset(defaults)
+      setColorDraft(defaults.sidebarColorHex)
     }
   }, [config, reset])
 
@@ -58,7 +74,7 @@ export default function ConfigPage() {
     mutationFn: parkConfigApi.update,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['park-config'] })
-      toast.success('Configuración guardada correctamente')
+      toast.success(config ? 'Configuración guardada correctamente' : 'Configuración creada correctamente')
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Error al guardar configuración')),
   })
@@ -75,13 +91,27 @@ export default function ConfigPage() {
     try {
       const result = await parkConfigApi.uploadLogo(file)
       qc.invalidateQueries({ queryKey: ['park-config'] })
-      setLogoPreview(result.logoUrl)
+      setLogoPreview(buildLogoUrl(result.logoUrl))
       toast.success('Logo subido correctamente')
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Error al subir el logo'))
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function handleColorPickerChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setColorDraft(val)
+    setValue('sidebarColorHex', val, { shouldDirty: true })
+  }
+
+  function handleColorTextChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setColorDraft(val)
+    if (HEX_REGEX.test(val)) {
+      setValue('sidebarColorHex', val, { shouldDirty: true })
     }
   }
 
@@ -100,40 +130,59 @@ export default function ConfigPage() {
         ? Number(values.maxCapacity)
         : undefined,
       systemLanUrl: values.systemLanUrl || undefined,
+      sidebarColorHex: values.sidebarColorHex && HEX_REGEX.test(values.sidebarColorHex)
+        ? values.sidebarColorHex
+        : undefined,
     }
     await updateMutation.mutateAsync(dto)
   }
 
   if (isLoading) return <Loading />
 
+  // Solo mostrar error para fallas reales del servidor (500, red, etc.)
+  // "sin configuración" ya NO es un error — el backend devuelve null con 200
   if (isError) {
     return (
       <div>
         <PageHeader title="Configuración del parque" subtitle="Datos institucionales y servicios" />
         <div className={styles.errorBox} style={{ margin: '24px 0' }}>
-          No existe una configuración inicial del parque en la base de datos. Un administrador
-          debe insertar el registro inicial en la tabla <strong>park_config</strong> antes de
-          poder editar esta sección.
+          {getApiErrorMessage(error, 'No se pudo cargar la configuración. Verifica que el servidor esté activo.')}
         </div>
       </div>
     )
   }
 
+  const isCreating = config === null
+  // Botón habilitado cuando: se está creando desde cero (siempre), o hay cambios (isDirty)
+  const canSave = !isSubmitting && !updateMutation.isPending && (isCreating || isDirty)
+
+  const currentLogoSrc = logoPreview ?? buildLogoUrl(config?.logoUrl)
+
   return (
     <div>
-      <PageHeader title="Configuración del parque" subtitle="Datos institucionales y servicios" />
+      <PageHeader
+        title="Configuración del parque"
+        subtitle={isCreating ? 'Configura los datos iniciales del parque' : 'Datos institucionales y servicios'}
+      />
+
+      {isCreating && (
+        <div className={styles.successBox} style={{ margin: '0 0 18px', background: 'var(--accent-dim, #f0fdf4)', border: '1px solid var(--accent, #22c55e)', color: 'var(--text-primary)' }}>
+          <strong>Primera vez:</strong> no existe configuración del parque. Completa los datos y guarda para crear el perfil inicial.
+        </div>
+      )}
 
       <div className={styles.grid2}>
         <Card>
-          <div className={styles.sectionTitle}>Datos del parque</div>
+          <div className={styles.sectionTitle}>
+            {isCreating ? 'Crear configuración del parque' : 'Datos del parque'}
+          </div>
+
           {updateMutation.isError && (
             <div className={styles.errorBox}>
               {getApiErrorMessage(updateMutation.error, 'Error al guardar configuración')}
             </div>
           )}
-          {updateMutation.isSuccess && (
-            <div className={styles.successBox}>Configuración guardada correctamente.</div>
-          )}
+
           <div className={styles.formGrid2}>
             <Input label="Nombre del parque" {...register('parkName')} />
             <Input label="Subtítulo" {...register('parkSubtitle')} />
@@ -151,11 +200,15 @@ export default function ConfigPage() {
             <Input label="Teléfono" {...register('phone')} />
             <Input label="Correo electrónico" type="email" {...register('email')} />
           </div>
+
+          {/* Logo del parque */}
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 6 }}>Logo del parque</div>
-            {(logoPreview || config?.logoUrl) && (
+            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Logo del parque
+            </div>
+            {currentLogoSrc && (
               <img
-                src={logoPreview ?? config!.logoUrl!}
+                src={currentLogoSrc}
                 alt="Logo actual"
                 style={{ height: 64, maxWidth: 240, objectFit: 'contain', borderRadius: 6, border: '1px solid var(--border)', marginBottom: 8 }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -184,6 +237,70 @@ export default function ConfigPage() {
               </span>
             </div>
           </div>
+
+          {/* Color de la barra lateral */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Color de la barra lateral
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="color"
+                value={HEX_REGEX.test(colorDraft) ? colorDraft : SIDEBAR_COLOR_FALLBACK}
+                onChange={handleColorPickerChange}
+                disabled={!canEdit}
+                style={{
+                  width: 40,
+                  height: 36,
+                  padding: 2,
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  cursor: canEdit ? 'pointer' : 'not-allowed',
+                  background: 'none',
+                  flexShrink: 0,
+                }}
+              />
+              <input
+                type="text"
+                value={colorDraft}
+                onChange={handleColorTextChange}
+                disabled={!canEdit}
+                maxLength={7}
+                placeholder="#1A3A2A"
+                style={{
+                  width: 96,
+                  fontFamily: 'monospace',
+                  fontSize: 'var(--text-sm)',
+                  padding: '7px 10px',
+                  border: `1px solid ${HEX_REGEX.test(colorDraft) ? 'var(--border)' : 'var(--error, #ef4444)'}`,
+                  borderRadius: 6,
+                  background: 'var(--surface)',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                }}
+              />
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 6,
+                  background: HEX_REGEX.test(colorDraft) ? colorDraft : SIDEBAR_COLOR_FALLBACK,
+                  border: '1px solid var(--border)',
+                  flexShrink: 0,
+                }}
+                title={`Vista previa: ${colorDraft}`}
+              />
+              {!HEX_REGEX.test(colorDraft) && (
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--error, #ef4444)' }}>
+                  HEX inválido
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
+              Solo formato #RRGGBB · Ej: #1A3A2A, #F54927
+            </div>
+          </div>
+
           <Input label="URL de la red local (LAN)" {...register('systemLanUrl')} />
 
           {canEdit && (
@@ -191,9 +308,13 @@ export default function ConfigPage() {
               <Button
                 variant="primary"
                 onClick={handleSubmit(onSubmit)}
-                disabled={isSubmitting || updateMutation.isPending || !isDirty}
+                disabled={!canSave}
               >
-                {isSubmitting || updateMutation.isPending ? 'Guardando…' : 'Guardar cambios'}
+                {isSubmitting || updateMutation.isPending
+                  ? 'Guardando…'
+                  : isCreating
+                    ? 'Crear configuración'
+                    : 'Guardar cambios'}
               </Button>
             </div>
           )}

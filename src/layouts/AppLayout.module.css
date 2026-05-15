@@ -18,3 +18,28 @@
   overflow-y: auto;
   padding: var(--space-6);
 }
+
+/* ─── Overlay para cerrar sidebar en mobile ─── */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  z-index: 190;
+}
+
+@media (max-width: 1024px) {
+  .content {
+    padding: var(--space-4);
+  }
+
+  .overlay.open {
+    display: block;
+  }
+}
+
+@media (max-width: 640px) {
+  .content {
+    padding: var(--space-3);
+  }
+}

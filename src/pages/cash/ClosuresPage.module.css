@@ -22,6 +22,10 @@
   gap: 12px;
 }
 
+@media (max-width: 640px) {
+  .previewRow { grid-template-columns: 1fr 1fr; }
+}
+
 .previewItem { display: flex; flex-direction: column; gap: 3px; }
 
 .previewLabel {

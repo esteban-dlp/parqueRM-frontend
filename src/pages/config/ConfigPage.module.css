@@ -24,6 +24,10 @@
   margin-bottom: 12px;
 }
 
+@media (max-width: 640px) {
+  .formGrid2 { grid-template-columns: 1fr; }
+}
+
 .serviceRow {
   display: flex;
   align-items: center;

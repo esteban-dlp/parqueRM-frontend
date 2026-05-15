@@ -10,10 +10,12 @@
   color: var(--text-muted);
   font-size: 14px;
   pointer-events: none;
+  display: flex;
+  align-items: center;
 }
 
 .input {
-  height: 34px;
+  height: var(--input-height);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -24,9 +26,7 @@
   width: 220px;
   transition:
     border-color var(--transition-base),
-    box-shadow var(--transition-base),
-    width 0.22s ease,
-    background var(--transition-base);
+    box-shadow var(--transition-base);
   font-family: var(--font);
   box-shadow: var(--shadow-xs);
 }
@@ -37,11 +37,22 @@
 
 .input:focus {
   border-color: var(--primary);
-  background: var(--surface);
-  width: 280px;
   box-shadow: var(--focus-ring), var(--shadow-xs);
+  width: 270px;
 }
 
 .input::placeholder {
   color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    display: flex;
+    width: 100%;
+  }
+
+  .input,
+  .input:focus {
+    width: 100%;
+  }
 }

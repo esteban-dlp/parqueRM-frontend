@@ -1,8 +1,3 @@
-/**
- * Hook para acceder a la configuración del parque.
- * El nombre del parque, código SIGAP, etc. se cargan desde el backend una vez
- * y se cachean con React Query. Se usa en Sidebar y Topbar.
- */
 import { useQuery } from '@tanstack/react-query'
 import { parkConfigApi } from '@/api/parkConfig.api'
 import type { ParkConfig } from '@/types/parkConfig'
@@ -10,7 +5,7 @@ import type { ParkConfig } from '@/types/parkConfig'
 const FALLBACK_NAME = 'Parque RM'
 
 export function useParkConfig() {
-  const { data, isLoading } = useQuery<ParkConfig>({
+  const { data, isLoading } = useQuery<ParkConfig | null>({
     queryKey: ['park-config'],
     queryFn: parkConfigApi.get,
     staleTime: 10 * 60 * 1000, // 10 minutos
@@ -18,7 +13,7 @@ export function useParkConfig() {
   })
 
   return {
-    config: data,
+    config: data ?? null,
     parkName: data?.parkName ?? FALLBACK_NAME,
     isLoading,
   }

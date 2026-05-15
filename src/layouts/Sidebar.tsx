@@ -3,19 +3,24 @@ import { useAuth } from '@/hooks/useAuth'
 import { useParkConfig } from '@/hooks/useParkConfig'
 import { usePermission } from '@/hooks/usePermission'
 import { PERMISSIONS } from '@/utils/permissions'
+import { buildLogoUrl } from '@/api/client'
 import styles from './Sidebar.module.css'
+
+const SIDEBAR_COLOR_FALLBACK = '#1A3A2A'
 
 interface NavItemProps {
   to: string
   icon: React.ReactNode
   label: string
   badge?: string
+  onNavigate?: () => void
 }
 
-function NavItem({ to, icon, label, badge }: NavItemProps) {
+function NavItem({ to, icon, label, badge, onNavigate }: NavItemProps) {
   return (
     <NavLink
       to={to}
+      onClick={onNavigate}
       className={({ isActive }) =>
         [styles.navItem, isActive ? styles.active : ''].filter(Boolean).join(' ')
       }
@@ -27,10 +32,11 @@ function NavItem({ to, icon, label, badge }: NavItemProps) {
   )
 }
 
-function NavSub({ to, label }: { to: string; label: string }) {
+function NavSub({ to, label, onNavigate }: { to: string; label: string; onNavigate?: () => void }) {
   return (
     <NavLink
       to={to}
+      onClick={onNavigate}
       className={({ isActive }) =>
         [styles.navSub, isActive ? styles.active : ''].filter(Boolean).join(' ')
       }
@@ -40,7 +46,12 @@ function NavSub({ to, label }: { to: string; label: string }) {
   )
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { user, logout } = useAuth()
   const { parkName, config } = useParkConfig()
   const navigate = useNavigate()
@@ -67,13 +78,24 @@ export function Sidebar() {
     navigate('/login')
   }
 
+  const sidebarClass = [
+    styles.sidebar,
+    isOpen ? styles.open : '',
+  ].filter(Boolean).join(' ')
+
+  const sidebarBg = config?.sidebarColorHex ?? SIDEBAR_COLOR_FALLBACK
+  const logoSrc = buildLogoUrl(config?.logoUrl)
+
   return (
-    <div className={styles.sidebar}>
+    <div
+      className={sidebarClass}
+      style={{ '--sidebar-bg': sidebarBg } as React.CSSProperties}
+    >
       {/* Logo */}
       <div className={styles.logo}>
         <div className={styles.logoCircle}>
-          {config?.logoUrl ? (
-            <img src={config.logoUrl} alt={parkName} />
+          {logoSrc ? (
+            <img src={logoSrc} alt={parkName} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           ) : (
             '🌿'
           )}
@@ -99,6 +121,7 @@ export function Sidebar() {
             to="/dashboard"
             label="Dashboard"
             badge="Hoy"
+            onNavigate={onClose}
             icon={
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <rect x="1" y="1" width="6" height="6" rx="1" />
@@ -119,6 +142,7 @@ export function Sidebar() {
             <NavItem
               to="/visitantes"
               label="Registro visitantes"
+              onNavigate={onClose}
               icon={
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="6" cy="5" r="3" />
@@ -133,6 +157,7 @@ export function Sidebar() {
             <NavItem
               to="/vehiculos"
               label="Registro vehículos"
+              onNavigate={onClose}
               icon={
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <rect x="1" y="6" width="14" height="7" rx="1.5" />
@@ -147,6 +172,7 @@ export function Sidebar() {
             <NavItem
               to="/hospedaje"
               label="Hospedaje"
+              onNavigate={onClose}
               icon={
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M2 14V5l6-3 6 3v9" />
@@ -161,6 +187,7 @@ export function Sidebar() {
             <NavItem
               to="/recibos"
               label="Recibos"
+              onNavigate={onClose}
               icon={
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M4 2h8a1 1 0 011 1v11l-2-1.5L9 14l-2-1.5L5 14l-2-1.5V3a1 1 0 011-1z" />
@@ -173,6 +200,7 @@ export function Sidebar() {
             <NavItem
               to="/caja"
               label="Control financiero"
+              onNavigate={onClose}
               icon={
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <rect x="1" y="3" width="14" height="10" rx="1.5" />
@@ -191,6 +219,7 @@ export function Sidebar() {
           <NavItem
             to="/reportes"
             label="Reportes y estadísticas"
+            onNavigate={onClose}
             icon={
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M3 12V8l3-3 3 3 4-5" />
@@ -209,6 +238,7 @@ export function Sidebar() {
             <NavItem
               to="/configuracion"
               label="Configuración"
+              onNavigate={onClose}
               icon={
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="8" cy="8" r="2.5" />
@@ -217,11 +247,11 @@ export function Sidebar() {
               }
             />
           )}
-          {canViewCatalogs && <NavSub to="/catalogos" label="Catálogos" />}
-          {canViewCatalogs && <NavSub to="/tarifas" label="Tarifas" />}
-          {canViewUsers && <NavSub to="/usuarios" label="Usuarios" />}
-          {canViewRoles && <NavSub to="/roles" label="Roles y permisos" />}
-          {canViewAudit && <NavSub to="/auditoria" label="Auditoría" />}
+          {canViewCatalogs && <NavSub to="/catalogos" label="Catálogos" onNavigate={onClose} />}
+          {canViewCatalogs && <NavSub to="/tarifas" label="Tarifas" onNavigate={onClose} />}
+          {canViewUsers && <NavSub to="/usuarios" label="Usuarios" onNavigate={onClose} />}
+          {canViewRoles && <NavSub to="/roles" label="Roles y permisos" onNavigate={onClose} />}
+          {canViewAudit && <NavSub to="/auditoria" label="Auditoría" onNavigate={onClose} />}
         </div>
       )}
 
@@ -236,16 +266,12 @@ export function Sidebar() {
           <button
             onClick={handleLogout}
             title="Cerrar sesión"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'rgba(255,255,255,0.4)',
-              cursor: 'pointer',
-              fontSize: 14,
-              padding: '2px 4px',
-            }}
+            className={styles.logoutBtn}
           >
-            ⏏
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <path d="M6 8h8M11 5l3 3-3 3" />
+              <path d="M10 3H3a1 1 0 00-1 1v8a1 1 0 001 1h7" />
+            </svg>
           </button>
         </div>
       </div>

@@ -24,6 +24,17 @@ export function getServerBaseUrl(): string {
   return BASE_URL.replace(/\/api\/?$/, '')
 }
 
+/**
+ * Convierte un logoUrl relativo (/uploads/...) en URL absoluta del backend.
+ * Si ya es URL absoluta o es null/undefined, lo devuelve sin modificar.
+ */
+export function buildLogoUrl(logoUrl: string | null | undefined): string | null {
+  if (!logoUrl) return null
+  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) return logoUrl
+  if (logoUrl.startsWith('/')) return getServerBaseUrl() + logoUrl
+  return logoUrl
+}
+
 // ─── Claves de localStorage ───────────────────────────────────────────────────
 const ACCESS_TOKEN_KEY = 'prm_access'
 const REFRESH_TOKEN_KEY = 'prm_refresh'
