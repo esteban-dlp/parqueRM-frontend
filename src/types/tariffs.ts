@@ -14,11 +14,12 @@ export interface Tariff {
   lodgingType?: { id: number; name: string }
   name: string
   appliesTo: TariffAppliesTo
-  amount: number
-  isForeign: boolean
+  amountLocal: number
+  amountForeign: number
   validFrom: string
   validTo: string | null
   isActive: boolean
+  deletedAt?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -30,8 +31,8 @@ export interface CreateTariffDto {
   lodgingTypeId?: number
   name: string
   appliesTo: TariffAppliesTo
-  amount: number
-  isForeign?: boolean
+  amountLocal: number
+  amountForeign: number
   validFrom: string
   validTo?: string
 }
@@ -43,11 +44,11 @@ export interface ResolveTariffParams {
   visitorCategoryId?: number
   vehicleTypeId?: number
   lodgingTypeId?: number
-  isForeign?: boolean
   date?: string
 }
 
 export interface TariffQueryParams extends PaginationParams {
+  search?: string
   appliesTo?: TariffAppliesTo
   isActive?: boolean
   serviceId?: number

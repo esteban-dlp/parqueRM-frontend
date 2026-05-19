@@ -11,6 +11,7 @@ export interface VehicleRecord {
   tariffId: number | null
   appliedRate: number
   totalAmount: number
+  isForeign: boolean
   exitEnabled: boolean
   source: string
   observations: string | null
@@ -26,6 +27,7 @@ export interface CreateVehicleDto {
   tariffId?: number
   appliedRate: number
   totalAmount: number
+  isForeign?: boolean
   observations?: string
   source?: string
 }

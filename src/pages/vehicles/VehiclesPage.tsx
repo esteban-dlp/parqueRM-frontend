@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -32,6 +32,7 @@ import styles from './VehiclesPage.module.css'
 const schema = z.object({
   vehicleTypeId: z.coerce.number().min(1, 'Selecciona tipo'),
   plateNumber: z.string().optional(),
+  isForeign: z.boolean().default(false),
   appliedRate: z.coerce.number().min(0),
   totalAmount: z.coerce.number().min(0),
   observations: z.string().optional(),
@@ -85,10 +86,12 @@ export default function VehiclesPage() {
     watch,
     setValue,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) as unknown as Resolver<FormValues> })
 
   const watchTypeId = watch('vehicleTypeId')
+  const watchIsForeign = watch('isForeign') ?? false
 
   const { data: resolvedTariff } = useQuery({
     queryKey: ['tariffs/resolve-vehicle', watchTypeId],
@@ -99,10 +102,11 @@ export default function VehiclesPage() {
 
   useEffect(() => {
     if (resolvedTariff && !editId) {
-      setValue('appliedRate', resolvedTariff.amount)
-      setValue('totalAmount', resolvedTariff.amount)
+      const rate = watchIsForeign ? resolvedTariff.amountForeign : resolvedTariff.amountLocal
+      setValue('appliedRate', rate)
+      setValue('totalAmount', rate)
     }
-  }, [resolvedTariff, editId, setValue])
+  }, [resolvedTariff, watchIsForeign, editId, setValue])
 
   const { data: editRecord } = useQuery({
     queryKey: ['vehicles/edit', editId],
@@ -116,6 +120,7 @@ export default function VehiclesPage() {
     reset({
       vehicleTypeId: editRecord.vehicleTypeId,
       plateNumber: editRecord.plateNumber ?? '',
+      isForeign: editRecord.isForeign ?? false,
       appliedRate: editRecord.appliedRate,
       totalAmount: editRecord.totalAmount,
       observations: editRecord.observations ?? '',
@@ -188,6 +193,7 @@ export default function VehiclesPage() {
     const dto = {
       vehicleTypeId: Number(values.vehicleTypeId),
       plateNumber: values.plateNumber || undefined,
+      isForeign: values.isForeign ?? false,
       appliedRate: Number(values.appliedRate),
       totalAmount: Number(values.totalAmount),
       observations: values.observations || undefined,
@@ -376,13 +382,49 @@ export default function VehiclesPage() {
           />
           <Input label="Placa" placeholder="P-123ABC" {...register('plateNumber')} />
         </div>
+
+        {/* Toggle extranjero */}
+        <Controller
+          control={control}
+          name="isForeign"
+          defaultValue={false}
+          render={({ field }) => (
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                marginBottom: 12,
+                userSelect: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={field.value ?? false}
+                onChange={(e) => field.onChange(e.target.checked)}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span>
+                Vehículo extranjero
+                {resolvedTariff && (
+                  <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>
+                    (nacional: Q{resolvedTariff.amountLocal} / extranjero: Q{resolvedTariff.amountForeign})
+                  </span>
+                )}
+              </span>
+            </label>
+          )}
+        />
+
         <div className={styles.formGrid2}>
           <Input
             label="Tarifa aplicada (Q)"
             type="number"
             step="0.01"
             min="0"
-            hint={resolvedTariff ? `Tarifa: ${resolvedTariff.name}` : undefined}
+            hint={resolvedTariff ? `Tarifa: ${resolvedTariff.name} — ${watchIsForeign ? 'extranjero' : 'nacional'}` : undefined}
             readOnly={!canOverrideTariff}
             style={!canOverrideTariff ? { background: 'var(--surface-raised)', cursor: 'not-allowed' } : undefined}
             {...register('appliedRate')}

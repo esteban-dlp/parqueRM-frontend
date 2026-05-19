@@ -77,6 +77,15 @@ export default function RolesPage() {
     onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar permisos')),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => rolesApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['roles'] })
+      toast.success('Rol eliminado correctamente')
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al eliminar rol')),
+  })
+
   function openPerms(role: Role) {
     setPermRole(role)
     const perms = Array.isArray(role.permissions) ? role.permissions : []
@@ -119,13 +128,33 @@ export default function RolesPage() {
     {
       key: 'actions',
       header: '',
-      width: '160px',
+      width: '220px',
       render: (r: Role) => (
         <TableActions>
           {canManage && (
             <>
-              <Button size="sm" variant="ghost" onClick={() => openEdit(r)}>Editar</Button>
-              <Button size="sm" variant="secondary" onClick={() => openPerms(r)}>Permisos</Button>
+              {r.name !== 'Administrador' ? (
+                <>
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(r)}>Editar</Button>
+                  <Button size="sm" variant="secondary" onClick={() => openPerms(r)}>Permisos</Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => {
+                      if (confirm(`¿Eliminar el rol "${r.name}"? Esta acción no se puede deshacer.`)) {
+                        deleteMutation.mutate(r.id)
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                  >
+                    Eliminar
+                  </Button>
+                </>
+              ) : (
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', padding: '0 4px' }}>
+                  Protegido
+                </span>
+              )}
             </>
           )}
         </TableActions>

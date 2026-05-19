@@ -95,6 +95,15 @@ export default function UsersPage() {
     onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar contraseña')),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => usersApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Usuario eliminado correctamente')
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al eliminar usuario')),
+  })
+
   function openEdit(u: User) {
     setEditUser(u)
     resetEdit({ fullName: u.fullName, email: u.email ?? '', roleId: u.roleId })
@@ -126,21 +135,39 @@ export default function UsersPage() {
     {
       key: 'actions',
       header: '',
-      width: '140px',
+      width: '200px',
       render: (r: User) => (
         <TableActions>
           {canManage && (
             <>
-              <Button size="sm" variant="ghost" onClick={() => openEdit(r)}>Editar</Button>
-              <Button size="sm" variant="ghost" onClick={() => setChangePwdUser(r)}>Contraseña</Button>
-              <Button
-                size="sm"
-                variant={r.isActive ? 'secondary' : 'ghost'}
-                onClick={() => toggleMutation.mutate(r.id)}
-                disabled={toggleMutation.isPending}
-              >
-                {r.isActive ? 'Desactivar' : 'Activar'}
-              </Button>
+              {r.username !== 'admin' ? (
+                <>
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(r)}>Editar</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setChangePwdUser(r)}>Contraseña</Button>
+                  <Button
+                    size="sm"
+                    variant={r.isActive ? 'secondary' : 'ghost'}
+                    onClick={() => toggleMutation.mutate(r.id)}
+                    disabled={toggleMutation.isPending}
+                  >
+                    {r.isActive ? 'Desactivar' : 'Activar'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => {
+                      if (confirm(`¿Eliminar al usuario "${r.username}"? Esta acción no se puede deshacer.`)) {
+                        deleteMutation.mutate(r.id)
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                  >
+                    Eliminar
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" variant="ghost" onClick={() => setChangePwdUser(r)}>Contraseña</Button>
+              )}
             </>
           )}
         </TableActions>

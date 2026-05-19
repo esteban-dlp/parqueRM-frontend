@@ -9,6 +9,7 @@ export interface VisitorRecord {
   tariffId: number | null
   appliedRate: number
   totalAmount: number
+  isForeign: boolean
   checkInAt: string
   checkOutAt: string | null
   recordDate: string
@@ -42,6 +43,7 @@ export interface CreateVisitorDto {
   tariffId?: number
   appliedRate: number
   totalAmount: number
+  isForeign?: boolean
   checkInAt?: string
   recordDate?: string
   countryId?: number

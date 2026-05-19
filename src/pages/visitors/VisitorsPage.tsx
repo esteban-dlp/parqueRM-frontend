@@ -39,6 +39,7 @@ const optionalId = z.preprocess(
 const schema = z.object({
   visitorCategoryId: z.coerce.number().min(1, 'Selecciona categoría'),
   quantity: z.coerce.number().min(1).default(1),
+  isForeign: z.boolean().default(false),
   appliedRate: z.coerce.number().min(0, 'Tarifa requerida'),
   totalAmount: z.coerce.number().min(0),
   countryId: optionalId,
@@ -148,6 +149,7 @@ export default function VisitorsPage() {
 
   const watchDept = watch('departmentId')
   const watchCategoryId = watch('visitorCategoryId')
+  const watchIsForeign = watch('isForeign') ?? false
   const watchQty = watch('quantity') ?? 1
 
   // Municipios dependientes del departamento seleccionado
@@ -160,7 +162,7 @@ export default function VisitorsPage() {
     enabled: !!watchDept,
   })
 
-  // Resolución automática de tarifa al cambiar categoría
+  // Resolución automática de tarifa al cambiar categoría o bandera extranjero
   const { data: resolvedTariff } = useQuery({
     queryKey: ['tariffs/resolve', watchCategoryId],
     queryFn: () =>
@@ -174,10 +176,11 @@ export default function VisitorsPage() {
 
   useEffect(() => {
     if (resolvedTariff && !editId) {
-      setValue('appliedRate', resolvedTariff.amount)
-      setValue('totalAmount', resolvedTariff.amount * (watchQty || 1))
+      const rate = watchIsForeign ? resolvedTariff.amountForeign : resolvedTariff.amountLocal
+      setValue('appliedRate', rate)
+      setValue('totalAmount', rate * (watchQty || 1))
     }
-  }, [resolvedTariff, watchQty, editId, setValue])
+  }, [resolvedTariff, watchQty, watchIsForeign, editId, setValue])
 
   const { data: editRecord } = useQuery({
     queryKey: ['visitors/edit', editId],
@@ -191,6 +194,7 @@ export default function VisitorsPage() {
     reset({
       visitorCategoryId: editRecord.visitorCategoryId,
       quantity: editRecord.quantity,
+      isForeign: editRecord.isForeign ?? false,
       appliedRate: editRecord.appliedRate,
       totalAmount: editRecord.totalAmount,
       countryId: editRecord.countryId ?? undefined,
@@ -278,6 +282,7 @@ export default function VisitorsPage() {
       ...values,
       visitorCategoryId: Number(values.visitorCategoryId),
       quantity: Number(values.quantity) || 1,
+      isForeign: values.isForeign ?? false,
       appliedRate: Number(values.appliedRate),
       totalAmount: Number(values.totalAmount),
       countryId: values.countryId || undefined,
@@ -477,7 +482,7 @@ export default function VisitorsPage() {
           </div>
         )}
 
-        {/* Categoría + cantidad */}
+        {/* Categoría + cantidad + extranjero */}
         <div className={styles.formGrid2}>
           <Select
             label="Categoría de visitante *"
@@ -502,6 +507,44 @@ export default function VisitorsPage() {
           />
         </div>
 
+        {/* Toggle extranjero */}
+        <Controller
+          control={control}
+          name="isForeign"
+          defaultValue={false}
+          render={({ field }) => (
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                marginBottom: 12,
+                userSelect: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={field.value ?? false}
+                onChange={(e) => {
+                  field.onChange(e.target.checked)
+                  setTimeout(handleQtyOrRateChange, 50)
+                }}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span>
+                Visitante extranjero
+                {resolvedTariff && (
+                  <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>
+                    (nacional: {resolvedTariff ? `Q${resolvedTariff.amountLocal}` : '—'} / extranjero: {resolvedTariff ? `Q${resolvedTariff.amountForeign}` : '—'})
+                  </span>
+                )}
+              </span>
+            </label>
+          )}
+        />
+
         {/* Tarifa */}
         <div className={styles.formGrid2}>
           <Input
@@ -509,7 +552,7 @@ export default function VisitorsPage() {
             type="number"
             step="0.01"
             min="0"
-            hint={resolvedTariff ? `Tarifa vigente: ${resolvedTariff.name}` : undefined}
+            hint={resolvedTariff ? `Tarifa: ${resolvedTariff.name} — ${watchIsForeign ? 'extranjero' : 'nacional'}` : undefined}
             error={errors.appliedRate?.message}
             readOnly={!canOverrideTariff}
             style={!canOverrideTariff ? { background: 'var(--surface-raised)', cursor: 'not-allowed' } : undefined}

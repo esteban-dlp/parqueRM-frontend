@@ -10,6 +10,7 @@ export interface LodgingRecord {
   tariffId: number | null
   appliedRate: number
   totalAmount: number
+  isForeign: boolean
   observations: string | null
   createdByUserId: number
   createdAt: string
@@ -24,6 +25,7 @@ export interface CreateLodgingDto {
   tariffId?: number
   appliedRate: number
   totalAmount: number
+  isForeign?: boolean
   observations?: string
 }
 
@@ -36,6 +38,7 @@ export interface LodgingSummary {
 }
 
 export interface LodgingQueryParams extends PaginationParams {
+  search?: string
   from?: string
   to?: string
   lodgingTypeId?: number

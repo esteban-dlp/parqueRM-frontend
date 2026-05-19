@@ -7,6 +7,7 @@ export interface CatalogItem {
   isActive: boolean
   createdAt?: string
   updatedAt?: string
+  deletedAt?: string | null
 }
 
 /** País con código de nacionalidad. */

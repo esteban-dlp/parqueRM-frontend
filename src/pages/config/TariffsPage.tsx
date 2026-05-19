@@ -16,7 +16,10 @@ import { Table, TableActions } from '@/components/ui/Table'
 import { Loading } from '@/components/ui/Loading'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { SearchBar } from '@/components/shared/SearchBar'
 import { usePermission } from '@/hooks/usePermission'
+import { useToast } from '@/hooks/useToast'
+import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 import type { Tariff } from '@/types/tariffs'
@@ -26,11 +29,11 @@ const schema = z.object({
   name: z.string().min(1, 'Nombre requerido'),
   appliesTo: z.enum(['VISITANTE', 'VEHICULO', 'HOSPEDAJE']),
   serviceId: z.coerce.number().min(1, 'Servicio requerido'),
-  amount: z.coerce.number().min(0, 'Monto requerido'),
+  amountLocal: z.coerce.number().min(0, 'Monto nacional requerido'),
+  amountForeign: z.coerce.number().min(0, 'Monto extranjero requerido'),
   visitorCategoryId: z.coerce.number().optional(),
   vehicleTypeId: z.coerce.number().optional(),
   lodgingTypeId: z.coerce.number().optional(),
-  isForeign: z.boolean().default(false),
   validFrom: z.string().min(1, 'Fecha requerida'),
   validTo: z.string().optional(),
 })
@@ -39,12 +42,15 @@ type FormValues = z.infer<typeof schema>
 export default function TariffsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editTariff, setEditTariff] = useState<Tariff | null>(null)
+  const [filterSearch, setFilterSearch] = useState('')
+  const [searchKey, setSearchKey] = useState(0)
   const canManage = usePermission(PERMISSIONS.CATALOGS_MANAGE)
   const qc = useQueryClient()
+  const toast = useToast()
 
   const { data: tariffsData, isLoading } = useQuery({
-    queryKey: ['tariffs'],
-    queryFn: () => tariffsApi.list({ limit: 100 }),
+    queryKey: ['tariffs', filterSearch],
+    queryFn: () => tariffsApi.list({ limit: 100, search: filterSearch || undefined }),
   })
 
   const { data: services = [] } = useQuery({
@@ -85,8 +91,10 @@ export default function TariffsPage() {
     mutationFn: tariffsApi.create,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tariffs'] })
+      toast.success('Tarifa creada correctamente')
       handleClose()
     },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al crear tarifa')),
   })
 
   const updateMutation = useMutation({
@@ -94,13 +102,24 @@ export default function TariffsPage() {
       tariffsApi.update(id, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tariffs'] })
+      toast.success('Tarifa actualizada correctamente')
       handleClose()
     },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al actualizar tarifa')),
   })
 
   const toggleMutation = useMutation({
     mutationFn: (id: number) => tariffsApi.toggleStatus(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tariffs'] }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => tariffsApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tariffs'] })
+      toast.success('Tarifa eliminada correctamente')
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al eliminar tarifa')),
   })
 
   function handleClose() {
@@ -115,11 +134,11 @@ export default function TariffsPage() {
       name: t.name,
       appliesTo: t.appliesTo,
       serviceId: t.serviceId,
-      amount: t.amount,
+      amountLocal: t.amountLocal,
+      amountForeign: t.amountForeign,
       visitorCategoryId: t.visitorCategoryId ?? undefined,
       vehicleTypeId: t.vehicleTypeId ?? undefined,
       lodgingTypeId: t.lodgingTypeId ?? undefined,
-      isForeign: t.isForeign,
       validFrom: t.validFrom?.split('T')[0] ?? '',
       validTo: t.validTo?.split('T')[0] ?? '',
     })
@@ -131,11 +150,11 @@ export default function TariffsPage() {
       name: values.name,
       appliesTo: values.appliesTo,
       serviceId: Number(values.serviceId),
-      amount: Number(values.amount),
+      amountLocal: Number(values.amountLocal),
+      amountForeign: Number(values.amountForeign),
       visitorCategoryId: values.visitorCategoryId ? Number(values.visitorCategoryId) : undefined,
       vehicleTypeId: values.vehicleTypeId ? Number(values.vehicleTypeId) : undefined,
       lodgingTypeId: values.lodgingTypeId ? Number(values.lodgingTypeId) : undefined,
-      isForeign: values.isForeign ?? false,
       validFrom: values.validFrom,
       validTo: values.validTo || undefined,
     }
@@ -162,15 +181,14 @@ export default function TariffsPage() {
         r.visitorCategory?.name ?? r.vehicleType?.name ?? r.lodgingType?.name ?? '—',
     },
     {
-      key: 'amount',
-      header: 'Tarifa',
-      render: (r: Tariff) => <span style={{ fontWeight: 500 }}>{formatCurrency(r.amount)}</span>,
+      key: 'amountLocal',
+      header: 'Nacional',
+      render: (r: Tariff) => <span style={{ fontWeight: 500 }}>{formatCurrency(r.amountLocal)}</span>,
     },
     {
-      key: 'isForeign',
+      key: 'amountForeign',
       header: 'Extranjero',
-      render: (r: Tariff) => r.isForeign ? <Badge variant="purple">Sí</Badge> : null,
-      width: '90px',
+      render: (r: Tariff) => <span style={{ fontWeight: 500, color: 'var(--purple, #7c3aed)' }}>{formatCurrency(r.amountForeign)}</span>,
     },
     {
       key: 'validFrom',
@@ -188,7 +206,7 @@ export default function TariffsPage() {
     {
       key: 'actions',
       header: '',
-      width: '120px',
+      width: '180px',
       render: (r: Tariff) => (
         <TableActions>
           {canManage && (
@@ -202,6 +220,18 @@ export default function TariffsPage() {
               >
                 {r.isActive ? 'Desactivar' : 'Activar'}
               </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  if (confirm(`¿Eliminar la tarifa "${r.name}"? Esta acción no se puede deshacer.`)) {
+                    deleteMutation.mutate(r.id)
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                Eliminar
+              </Button>
             </>
           )}
         </TableActions>
@@ -213,7 +243,7 @@ export default function TariffsPage() {
     <div>
       <PageHeader
         title="Tarifas"
-        subtitle="Gestión de tarifas por servicio"
+        subtitle="Gestión de tarifas por servicio — cada tarifa tiene precio nacional y extranjero"
         actions={
           canManage ? (
             <Button variant="primary" onClick={() => setShowForm(true)}>+ Nueva tarifa</Button>
@@ -221,11 +251,18 @@ export default function TariffsPage() {
         }
       />
 
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 14 }}>
+        <SearchBar key={searchKey} placeholder="Nombre de tarifa…" onSearch={(q) => setFilterSearch(q)} />
+        {filterSearch && (
+          <Button variant="ghost" onClick={() => { setSearchKey(k => k + 1); setFilterSearch('') }}>✕ Limpiar</Button>
+        )}
+      </div>
+
       <Card padding="flush">
         {isLoading ? (
           <Loading />
         ) : tariffs.length === 0 ? (
-          <EmptyState icon="💲" title="Sin tarifas" description="Configura las tarifas del parque." />
+          <EmptyState icon="💲" title="Sin tarifas" description={filterSearch ? `Sin resultados para "${filterSearch}"` : 'Configura las tarifas del parque.'} />
         ) : (
           <Table columns={columns} data={tariffs} keyExtractor={(r) => r.id} />
         )}
@@ -249,6 +286,11 @@ export default function TariffsPage() {
           </>
         }
       >
+        {(createMutation.isError || updateMutation.isError) && (
+          <div className={styles.errorBox}>
+            {getApiErrorMessage(createMutation.error ?? updateMutation.error, 'Error al guardar')}
+          </div>
+        )}
         <div className={styles.formGrid2}>
           <Input label="Nombre *" error={errors.name?.message} {...register('name')} />
           <Select
@@ -271,47 +313,56 @@ export default function TariffsPage() {
             error={errors.serviceId?.message}
             {...register('serviceId')}
           />
+          {watchAppliesTo === 'VISITANTE' && (
+            <Select
+              label="Categoría de visitante"
+              options={visitorCategories.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder="— Todas las categorías —"
+              {...register('visitorCategoryId')}
+            />
+          )}
+          {watchAppliesTo === 'VEHICULO' && (
+            <Select
+              label="Tipo de vehículo"
+              options={vehicleTypes.map((t) => ({ value: t.id, label: t.name }))}
+              placeholder="— Todos los tipos —"
+              {...register('vehicleTypeId')}
+            />
+          )}
+          {watchAppliesTo === 'HOSPEDAJE' && (
+            <Select
+              label="Tipo de hospedaje"
+              options={lodgingTypes.map((t) => ({ value: t.id, label: t.name }))}
+              placeholder="— Todos los tipos —"
+              {...register('lodgingTypeId')}
+            />
+          )}
+          {!watchAppliesTo && <div />}
+        </div>
+        <div className={styles.formGrid2}>
           <Input
-            label="Monto (Q) *"
+            label="Precio nacional / local (Q) *"
             type="number"
             step="0.01"
             min="0"
-            error={errors.amount?.message}
-            {...register('amount')}
+            hint="Aplica cuando el registro es nacional"
+            error={errors.amountLocal?.message}
+            {...register('amountLocal')}
+          />
+          <Input
+            label="Precio extranjero (Q) *"
+            type="number"
+            step="0.01"
+            min="0"
+            hint="Aplica cuando el registro es extranjero"
+            error={errors.amountForeign?.message}
+            {...register('amountForeign')}
           />
         </div>
-        {watchAppliesTo === 'VISITANTE' && (
-          <Select
-            label="Categoría de visitante"
-            options={visitorCategories.map((c) => ({ value: c.id, label: c.name }))}
-            placeholder="— Todas las categorías —"
-            {...register('visitorCategoryId')}
-          />
-        )}
-        {watchAppliesTo === 'VEHICULO' && (
-          <Select
-            label="Tipo de vehículo"
-            options={vehicleTypes.map((t) => ({ value: t.id, label: t.name }))}
-            placeholder="— Todos los tipos —"
-            {...register('vehicleTypeId')}
-          />
-        )}
-        {watchAppliesTo === 'HOSPEDAJE' && (
-          <Select
-            label="Tipo de hospedaje"
-            options={lodgingTypes.map((t) => ({ value: t.id, label: t.name }))}
-            placeholder="— Todos los tipos —"
-            {...register('lodgingTypeId')}
-          />
-        )}
         <div className={styles.formGrid2} style={{ marginTop: 10 }}>
           <Input label="Válida desde *" type="date" error={errors.validFrom?.message} {...register('validFrom')} />
           <Input label="Válida hasta (vacío = indefinido)" type="date" {...register('validTo')} />
         </div>
-        <label className={styles.checkboxRow}>
-          <input type="checkbox" {...register('isForeign')} />
-          <span>Tarifa para extranjeros</span>
-        </label>
       </Modal>
     </div>
   )

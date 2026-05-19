@@ -16,6 +16,7 @@ export interface Role {
   name: string
   description: string | null
   isActive: boolean
+  deletedAt?: string | null
   permissions?: Permission[]
   createdAt: string
   updatedAt: string

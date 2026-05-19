@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -20,6 +20,7 @@ import { Loading } from '@/components/ui/Loading'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PaginationBar } from '@/components/shared/PaginationBar'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { SearchBar } from '@/components/shared/SearchBar'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
 import { getApiErrorMessage } from '@/api/client'
@@ -33,6 +34,7 @@ const schema = z.object({
   lodgingTypeId: z.coerce.number().min(1, 'Selecciona tipo'),
   nights: z.coerce.number().min(1, 'Mínimo 1 noche'),
   guests: z.coerce.number().min(1, 'Mínimo 1 huésped'),
+  isForeign: z.boolean().default(false),
   appliedRate: z.coerce.number().min(0),
   totalAmount: z.coerce.number().min(0),
   recordDate: z.string().optional(),
@@ -44,9 +46,11 @@ export default function LodgingPage() {
   const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
+  const [filterSearch, setFilterSearch] = useState('')
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
   const [filterTypeId, setFilterTypeId] = useState('')
+  const [searchKey, setSearchKey] = useState(0)
   const qc = useQueryClient()
   const toast = useToast()
 
@@ -57,9 +61,10 @@ export default function LodgingPage() {
   const canOverrideTariff = usePermission(PERMISSIONS.TARIFF_OVERRIDE)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['lodging', page, filterFrom, filterTo, filterTypeId],
+    queryKey: ['lodging', page, filterSearch, filterFrom, filterTo, filterTypeId],
     queryFn: () => lodgingApi.list({
       page, limit: 20,
+      search: filterSearch || undefined,
       from: filterFrom || undefined,
       to: filterTo || undefined,
       lodgingTypeId: filterTypeId ? Number(filterTypeId) : undefined,
@@ -83,14 +88,16 @@ export default function LodgingPage() {
     watch,
     setValue,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-    defaultValues: { nights: 1, guests: 1 },
+    defaultValues: { nights: 1, guests: 1, isForeign: false },
   })
 
   const watchTypeId = watch('lodgingTypeId')
   const watchNights = watch('nights') ?? 1
+  const watchIsForeign = watch('isForeign') ?? false
 
   const { data: resolvedTariff } = useQuery({
     queryKey: ['tariffs/resolve-lodging', watchTypeId],
@@ -102,10 +109,11 @@ export default function LodgingPage() {
   useEffect(() => {
     if (resolvedTariff && !editId) {
       const nights = Number(watchNights) || 1
-      setValue('appliedRate', resolvedTariff.amount)
-      setValue('totalAmount', parseFloat((toNum(resolvedTariff.amount) * nights).toFixed(2)))
+      const rate = watchIsForeign ? resolvedTariff.amountForeign : resolvedTariff.amountLocal
+      setValue('appliedRate', rate)
+      setValue('totalAmount', parseFloat((toNum(rate) * nights).toFixed(2)))
     }
-  }, [resolvedTariff, watchNights, editId, setValue])
+  }, [resolvedTariff, watchNights, watchIsForeign, editId, setValue])
 
   const { data: editRecord } = useQuery({
     queryKey: ['lodging/edit', editId],
@@ -120,6 +128,7 @@ export default function LodgingPage() {
       lodgingTypeId: editRecord.lodgingTypeId,
       nights: editRecord.nights,
       guests: editRecord.guests,
+      isForeign: editRecord.isForeign ?? false,
       appliedRate: editRecord.appliedRate,
       totalAmount: editRecord.totalAmount,
       recordDate: editRecord.recordDate ?? '',
@@ -166,6 +175,7 @@ export default function LodgingPage() {
       lodgingTypeId: Number(values.lodgingTypeId),
       nights: Number(values.nights),
       guests: Number(values.guests),
+      isForeign: values.isForeign ?? false,
       appliedRate: Number(values.appliedRate),
       totalAmount: Number(values.totalAmount),
       recordDate: values.recordDate || undefined,
@@ -277,6 +287,7 @@ export default function LodgingPage() {
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 14 }}>
+        <SearchBar key={searchKey} placeholder="Observaciones…" onSearch={(q) => { setFilterSearch(q); setPage(1) }} />
         <div style={{ width: 150 }}><Input label="Desde" type="date" value={filterFrom} onChange={(e) => { setFilterFrom(e.target.value); setPage(1) }} /></div>
         <div style={{ width: 150 }}><Input label="Hasta" type="date" value={filterTo} onChange={(e) => { setFilterTo(e.target.value); setPage(1) }} /></div>
         <div style={{ width: 170 }}>
@@ -288,8 +299,8 @@ export default function LodgingPage() {
             onChange={(e) => { setFilterTypeId(e.target.value); setPage(1) }}
           />
         </div>
-        {(filterFrom || filterTo || filterTypeId) && (
-          <Button variant="ghost" onClick={() => { setFilterFrom(''); setFilterTo(''); setFilterTypeId(''); setPage(1) }}>✕ Limpiar</Button>
+        {(filterSearch || filterFrom || filterTo || filterTypeId) && (
+          <Button variant="ghost" onClick={() => { setSearchKey(k => k + 1); setFilterSearch(''); setFilterFrom(''); setFilterTo(''); setFilterTypeId(''); setPage(1) }}>✕ Limpiar</Button>
         )}
       </div>
 
@@ -342,6 +353,42 @@ export default function LodgingPage() {
           />
           <Input label="Fecha de registro" type="date" defaultValue={todayISO()} {...register('recordDate')} />
         </div>
+
+        {/* Toggle extranjero */}
+        <Controller
+          control={control}
+          name="isForeign"
+          defaultValue={false}
+          render={({ field }) => (
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                marginBottom: 12,
+                userSelect: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={field.value ?? false}
+                onChange={(e) => field.onChange(e.target.checked)}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span>
+                Huésped extranjero
+                {resolvedTariff && (
+                  <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>
+                    (nacional: Q{resolvedTariff.amountLocal} / extranjero: Q{resolvedTariff.amountForeign})
+                  </span>
+                )}
+              </span>
+            </label>
+          )}
+        />
+
         <div className={styles.formGrid3}>
           <Input
             label="Noches *"
@@ -362,7 +409,7 @@ export default function LodgingPage() {
             type="number"
             step="0.01"
             min="0"
-            hint={resolvedTariff ? `Tarifa vigente: ${resolvedTariff.name}` : undefined}
+            hint={resolvedTariff ? `Tarifa: ${resolvedTariff.name} — ${watchIsForeign ? 'extranjero' : 'nacional'}` : undefined}
             readOnly={!canOverrideTariff}
             style={!canOverrideTariff ? { background: 'var(--surface-raised)', cursor: 'not-allowed' } : undefined}
             {...register('appliedRate')}

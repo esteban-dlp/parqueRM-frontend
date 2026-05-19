@@ -89,6 +89,15 @@ export default function CatalogsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['catalogs', activeTab] }),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => catalogsApi[activeTab].remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['catalogs', activeTab] })
+      toast.success('Elemento eliminado correctamente')
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al eliminar elemento')),
+  })
+
   function handleClose() {
     setShowForm(false)
     setEditItem(null)
@@ -142,6 +151,18 @@ export default function CatalogsPage() {
                 disabled={toggleMutation.isPending}
               >
                 {r.isActive ? 'Desactivar' : 'Activar'}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  if (confirm(`¿Eliminar "${r.name}"? Esta acción no se puede deshacer.`)) {
+                    deleteMutation.mutate(r.id)
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                Eliminar
               </Button>
             </>
           )}
