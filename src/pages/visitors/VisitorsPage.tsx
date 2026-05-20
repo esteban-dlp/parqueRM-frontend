@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm, Controller } from 'react-hook-form'
-import type { Resolver } from 'react-hook-form'
+import { useForm, Controller, useFieldArray, useWatch } from 'react-hook-form'
+import type { Resolver, Control, UseFormSetValue } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { visitorsApi } from '@/api/visitors.api'
@@ -36,6 +36,14 @@ const optionalId = z.preprocess(
   z.coerce.number().positive().optional(),
 )
 
+const companionSchema = z.object({
+  visitorCategoryId: z.coerce.number().min(1, 'Categoría requerida'),
+  quantity: z.coerce.number().min(1).default(1),
+  isForeign: z.boolean().default(false),
+  appliedRate: z.coerce.number().min(0),
+  totalAmount: z.coerce.number().min(0),
+})
+
 const schema = z.object({
   visitorCategoryId: z.coerce.number().min(1, 'Selecciona categoría'),
   quantity: z.coerce.number().min(1).default(1),
@@ -57,6 +65,7 @@ const schema = z.object({
   observations: z.string().optional(),
   reasonIds: z.array(z.number()).optional(),
   activityIds: z.array(z.number()).optional(),
+  companions: z.array(companionSchema).optional().default([]),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -146,6 +155,11 @@ export default function VisitorsPage() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) as unknown as Resolver<FormValues> })
+
+  const { fields: companionFields, append: appendCompanion, remove: removeCompanion } = useFieldArray({
+    control,
+    name: 'companions',
+  })
 
   const watchDept = watch('departmentId')
   const watchCategoryId = watch('visitorCategoryId')
@@ -278,6 +292,7 @@ export default function VisitorsPage() {
   const hasFilters = !!(filterSearch || filterFrom || filterTo || filterCategoryId)
 
   async function onSubmit(values: FormValues) {
+    const companions = (values.companions ?? []).filter(c => c.visitorCategoryId > 0)
     const dto = {
       ...values,
       visitorCategoryId: Number(values.visitorCategoryId),
@@ -297,9 +312,18 @@ export default function VisitorsPage() {
       identificationType: values.identificationType || undefined,
       identificationNumber: values.identificationNumber || undefined,
       fullName: values.fullName || undefined,
+      companions: companions.length > 0 ? companions.map(c => ({
+        visitorCategoryId: Number(c.visitorCategoryId),
+        quantity: Number(c.quantity) || 1,
+        isForeign: c.isForeign ?? false,
+        appliedRate: Number(c.appliedRate),
+        totalAmount: Number(c.totalAmount),
+      })) : undefined,
     }
     if (editId) {
-      await updateMutation.mutateAsync({ id: editId, dto })
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { companions: _c, ...updateDto } = dto
+      await updateMutation.mutateAsync({ id: editId, dto: updateDto })
     } else {
       await createMutation.mutateAsync(dto)
     }
@@ -572,6 +596,37 @@ export default function VisitorsPage() {
           </div>
         </div>
 
+        {/* Acompañantes */}
+        {!editId && (
+          <>
+            <div className={styles.divider} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div className={styles.sectionLabel} style={{ marginBottom: 0 }}>Acompañantes</div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => appendCompanion({ visitorCategoryId: 0, quantity: 1, isForeign: false, appliedRate: 0, totalAmount: 0 })}
+              >
+                + Agregar acompañante
+              </Button>
+            </div>
+            {companionFields.map((field, idx) => (
+              <CompanionRow
+                key={field.id}
+                index={idx}
+                control={control}
+                setValue={setValue}
+                categories={categories}
+                remove={() => removeCompanion(idx)}
+              />
+            ))}
+            {companionFields.length > 0 && (
+              <CompanionGrandTotal control={control} watchRate={watchRate} watchQty={watchQty} />
+            )}
+          </>
+        )}
+
         <div className={styles.divider} />
 
         {/* Procedencia */}
@@ -766,6 +821,170 @@ export default function VisitorsPage() {
           {...register('observations')}
         />
       </Modal>
+    </div>
+  )
+}
+
+// ─── Companion sub-components ────────────────────────────────────────────────
+
+interface CompanionRowProps {
+  index: number
+  control: Control<FormValues>
+  setValue: UseFormSetValue<FormValues>
+  categories: { id: number; name: string }[]
+  remove: () => void
+}
+
+function CompanionRow({ index, control, setValue, categories, remove }: CompanionRowProps) {
+  const categoryId = useWatch({ control, name: `companions.${index}.visitorCategoryId` })
+  const isForeign = useWatch({ control, name: `companions.${index}.isForeign` }) ?? false
+  const qty = useWatch({ control, name: `companions.${index}.quantity` }) ?? 1
+
+  const { data: tariff } = useQuery({
+    queryKey: ['tariffs/resolve/companion', categoryId, index],
+    queryFn: () =>
+      tariffsApi.resolve({
+        appliesTo: 'VISITANTE',
+        visitorCategoryId: Number(categoryId),
+        date: todayISO(),
+      }),
+    enabled: !!categoryId && Number(categoryId) > 0,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  useEffect(() => {
+    if (!tariff) return
+    const rate = isForeign ? tariff.amountForeign : tariff.amountLocal
+    setValue(`companions.${index}.appliedRate`, rate)
+    setValue(`companions.${index}.totalAmount`, parseFloat((rate * (Number(qty) || 1)).toFixed(2)))
+  }, [tariff, isForeign, qty, index, setValue])
+
+  const rate = useWatch({ control, name: `companions.${index}.appliedRate` }) ?? 0
+  const subtotal = parseFloat((Number(rate) * (Number(qty) || 1)).toFixed(2))
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 80px auto 100px auto',
+        gap: 8,
+        alignItems: 'flex-end',
+        marginBottom: 8,
+        padding: '8px 10px',
+        background: 'var(--surface-raised)',
+        borderRadius: 'var(--radius-md)',
+        border: '0.5px solid var(--border-light)',
+      }}
+    >
+      <Controller
+        control={control}
+        name={`companions.${index}.visitorCategoryId`}
+        render={({ field }) => (
+          <Select
+            label={index === 0 ? 'Categoría' : undefined}
+            placeholder="— Categoría —"
+            options={categories.map((c) => ({ value: c.id, label: c.name }))}
+            value={String(field.value ?? '')}
+            onChange={(e) => field.onChange(Number(e.target.value))}
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name={`companions.${index}.quantity`}
+        render={({ field }) => (
+          <Input
+            label={index === 0 ? 'Cant.' : undefined}
+            type="number"
+            min="1"
+            value={String(field.value ?? 1)}
+            onChange={(e) => field.onChange(Number(e.target.value))}
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name={`companions.${index}.isForeign`}
+        render={({ field }) => (
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              fontSize: 'var(--text-xs)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              paddingBottom: 4,
+            }}
+          >
+            {index === 0 && <span style={{ color: 'var(--text-secondary)' }}>Extranj.</span>}
+            <input
+              type="checkbox"
+              checked={field.value ?? false}
+              onChange={(e) => field.onChange(e.target.checked)}
+              style={{ width: 15, height: 15 }}
+            />
+          </label>
+        )}
+      />
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          paddingBottom: 4,
+          fontSize: 'var(--text-sm)',
+          fontWeight: 500,
+          textAlign: 'right',
+        }}
+      >
+        {index === 0 && (
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginBottom: 2 }}>
+            Subtotal
+          </span>
+        )}
+        {tariff ? formatCurrency(subtotal) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+        <Button type="button" size="sm" variant="danger" onClick={remove}>✕</Button>
+      </div>
+    </div>
+  )
+}
+
+interface CompanionGrandTotalProps {
+  control: Control<FormValues>
+  watchRate: number
+  watchQty: number
+}
+
+function CompanionGrandTotal({ control, watchRate, watchQty }: CompanionGrandTotalProps) {
+  const companions = useWatch({ control, name: 'companions' }) ?? []
+  const companionTotal = companions.reduce((sum, c) => sum + (Number(c?.totalAmount) || 0), 0)
+  const primarySubtotal = parseFloat((Number(watchRate) * (Number(watchQty) || 1)).toFixed(2))
+  const grandTotal = parseFloat((primarySubtotal + companionTotal).toFixed(2))
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 16,
+        padding: '8px 10px',
+        borderTop: '1px solid var(--border-light)',
+        marginBottom: 4,
+      }}
+    >
+      <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+        Principal: {formatCurrency(primarySubtotal)}
+        {' + '}
+        Acompañantes: {formatCurrency(companionTotal)}
+      </span>
+      <span style={{ fontWeight: 600, fontSize: 'var(--text-md)' }}>
+        Total: {formatCurrency(grandTotal)}
+      </span>
     </div>
   )
 }

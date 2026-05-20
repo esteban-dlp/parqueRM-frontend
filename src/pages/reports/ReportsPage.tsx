@@ -5,6 +5,7 @@ import { parkConfigApi } from '@/api/parkConfig.api'
 import { downloadReportPdf } from '@/utils/pdf'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
 import { Table } from '@/components/ui/Table'
 import { Loading } from '@/components/ui/Loading'
@@ -25,7 +26,16 @@ async function downloadXlsx(sheetData: Record<string, unknown>[], filename: stri
   XLSX.writeFile(wb, filename)
 }
 
-type TabKey = 'general' | 'visitors' | 'income'
+type TabKey = 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts'
+
+const TAB_LABELS: Record<TabKey, string> = {
+  general: 'General',
+  visitors: 'Visitantes',
+  vehicles: 'Vehículos',
+  lodging: 'Hospedaje',
+  income: 'Ingresos (Caja)',
+  receipts: 'Transacciones',
+}
 
 export default function ReportsPage() {
   const canExport = usePermission(PERMISSIONS.REPORTES_EXPORT)
@@ -50,10 +60,28 @@ export default function ReportsPage() {
     enabled: tab === 'visitors',
   })
 
+  const { data: vehiclesData, isLoading: loadingVehicles } = useQuery({
+    queryKey: ['reports/vehicles', params],
+    queryFn: () => reportsApi.vehicles(params),
+    enabled: tab === 'vehicles',
+  })
+
+  const { data: lodgingData, isLoading: loadingLodging } = useQuery({
+    queryKey: ['reports/lodging', params],
+    queryFn: () => reportsApi.lodging(params),
+    enabled: tab === 'lodging',
+  })
+
   const { data: incomeData, isLoading: loadingIncome } = useQuery({
     queryKey: ['reports/income', params],
     queryFn: () => reportsApi.income(params),
     enabled: tab === 'income',
+  })
+
+  const { data: receiptsData, isLoading: loadingReceipts } = useQuery({
+    queryKey: ['reports/receipts', params],
+    queryFn: () => reportsApi.receipts(params),
+    enabled: tab === 'receipts',
   })
 
   const { data: parkConfig } = useQuery({
@@ -77,6 +105,30 @@ export default function ReportsPage() {
         Salida: r.checkOutAt ?? '—',
       }))
       await downloadXlsx(flat, `visitantes-${from}.xlsx`)
+    } else if (tab === 'vehicles') {
+      const rows = (vehiclesData?.data ?? []) as Record<string, unknown>[]
+      if (!rows.length) { toast.error('No hay datos para exportar'); return }
+      const flat = rows.map((r) => ({
+        Placa: r.plateNumber ?? '—',
+        Tipo: (r.vehicleType as { name?: string } | null)?.name ?? '—',
+        'Tarifa Q': r.appliedRate,
+        'Total Q': r.totalAmount,
+        Ingreso: r.checkInAt,
+        Salida: r.checkOutAt ?? '—',
+      }))
+      await downloadXlsx(flat, `vehiculos-${from}.xlsx`)
+    } else if (tab === 'lodging') {
+      const rows = (lodgingData?.data ?? []) as Record<string, unknown>[]
+      if (!rows.length) { toast.error('No hay datos para exportar'); return }
+      const flat = rows.map((r) => ({
+        Tipo: (r.lodgingType as { name?: string } | null)?.name ?? '—',
+        Fecha: r.recordDate,
+        Noches: r.nights,
+        Huéspedes: r.guests,
+        'Tarifa Q': r.appliedRate,
+        'Total Q': r.totalAmount,
+      }))
+      await downloadXlsx(flat, `hospedaje-${from}.xlsx`)
     } else if (tab === 'income') {
       const rows = (incomeData?.data ?? []) as Record<string, unknown>[]
       if (!rows.length) { toast.error('No hay datos para exportar'); return }
@@ -86,6 +138,19 @@ export default function ReportsPage() {
         'Monto Q': r.amount ?? r.total ?? 0,
       }))
       await downloadXlsx(flat, `ingresos-${from}.xlsx`)
+    } else if (tab === 'receipts') {
+      const rows = (receiptsData?.data ?? []) as Record<string, unknown>[]
+      if (!rows.length) { toast.error('No hay datos para exportar'); return }
+      const flat = rows.map((r) => ({
+        'No. Recibo': r.receiptNumber,
+        Contribuyente: r.contributorName ?? '—',
+        Origen: r.originType,
+        'Método de pago': (r.paymentMethod as { name?: string } | null)?.name ?? '—',
+        'Total Q': r.total,
+        Estado: r.status,
+        Fecha: r.receiptDate ?? r.createdAt,
+      }))
+      await downloadXlsx(flat, `transacciones-${from}.xlsx`)
     } else if (tab === 'general' && general) {
       const rows = [
         { Indicador: 'Visitantes', Valor: general.totalVisitors },
@@ -106,7 +171,10 @@ export default function ReportsPage() {
       to,
       general: general as unknown as Record<string, unknown> | undefined,
       visitors: (visitorsData?.data ?? []) as unknown as Record<string, unknown>[],
+      vehicles: (vehiclesData?.data ?? []) as Record<string, unknown>[],
+      lodging: (lodgingData?.data ?? []) as Record<string, unknown>[],
       income: (incomeData?.data ?? []) as Record<string, unknown>[],
+      receipts: (receiptsData?.data ?? []) as Record<string, unknown>[],
       parkConfig,
     })
   }
@@ -130,6 +198,62 @@ export default function ReportsPage() {
       key: 'checkOutAt',
       header: 'Salida',
       render: (r: ReportVisitorRow) => formatDate(r.checkOutAt),
+    },
+  ]
+
+  const vehicleColumns = [
+    { key: 'plateNumber', header: 'Placa', width: '100px', render: (r: Record<string, unknown>) => String(r.plateNumber ?? '—') },
+    {
+      key: 'vehicleType',
+      header: 'Tipo',
+      render: (r: Record<string, unknown>) => {
+        const vt = r.vehicleType as { name?: string } | null | undefined
+        return String(vt?.name ?? '—')
+      },
+    },
+    {
+      key: 'appliedRate',
+      header: 'Tarifa',
+      render: (r: Record<string, unknown>) => formatCurrency(Number(r.appliedRate ?? 0)),
+    },
+    {
+      key: 'totalAmount',
+      header: 'Total',
+      render: (r: Record<string, unknown>) => formatCurrency(Number(r.totalAmount ?? 0)),
+    },
+    {
+      key: 'checkInAt',
+      header: 'Ingreso',
+      render: (r: Record<string, unknown>) => formatDate(r.checkInAt as string),
+    },
+    {
+      key: 'checkOutAt',
+      header: 'Salida',
+      render: (r: Record<string, unknown>) => formatDate(r.checkOutAt as string | null),
+    },
+  ]
+
+  const lodgingColumns = [
+    {
+      key: 'lodgingType',
+      header: 'Tipo',
+      render: (r: Record<string, unknown>) => {
+        const lt = r.lodgingType as { name?: string } | null | undefined
+        return String(lt?.name ?? '—')
+      },
+    },
+    { key: 'recordDate', header: 'Fecha', render: (r: Record<string, unknown>) => String(r.recordDate ?? '—') },
+    { key: 'nights', header: 'Noches', width: '70px', render: (r: Record<string, unknown>) => String(r.nights ?? '—') },
+    { key: 'guests', header: 'Huésp.', width: '70px', render: (r: Record<string, unknown>) => String(r.guests ?? '—') },
+    {
+      key: 'appliedRate',
+      header: 'Tarifa',
+      render: (r: Record<string, unknown>) => formatCurrency(Number(r.appliedRate ?? 0)),
+    },
+    {
+      key: 'totalAmount',
+      header: 'Total',
+      render: (r: Record<string, unknown>) => formatCurrency(Number(r.totalAmount ?? 0)),
     },
   ]
 
@@ -159,10 +283,49 @@ export default function ReportsPage() {
     },
   ]
 
+  const receiptsRows = (receiptsData?.data ?? []) as Record<string, unknown>[]
+
+  const receiptsColumns = [
+    { key: 'receiptNumber', header: 'No. Recibo', width: '120px', render: (r: Record<string, unknown>) => String(r.receiptNumber ?? '—') },
+    { key: 'originType', header: 'Origen', render: (r: Record<string, unknown>) => <Badge variant="blue">{String(r.originType ?? '—')}</Badge> },
+    {
+      key: 'paymentMethod',
+      header: 'Método',
+      render: (r: Record<string, unknown>) => {
+        const pm = r.paymentMethod as { name?: string } | null | undefined
+        return String(pm?.name ?? '—')
+      },
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      render: (r: Record<string, unknown>) => formatCurrency(Number(r.total ?? 0)),
+    },
+    {
+      key: 'status',
+      header: 'Estado',
+      render: (r: Record<string, unknown>) =>
+        r.status === 'CANCELADO'
+          ? <Badge variant="red">Cancelado</Badge>
+          : <Badge variant="green">Activo</Badge>,
+    },
+    {
+      key: 'receiptDate',
+      header: 'Fecha',
+      render: (r: Record<string, unknown>) => formatDate((r.receiptDate ?? r.createdAt) as string),
+    },
+  ]
+
   const isLoading =
     (tab === 'general' && loadingGeneral) ||
     (tab === 'visitors' && loadingVisitors) ||
-    (tab === 'income' && loadingIncome)
+    (tab === 'vehicles' && loadingVehicles) ||
+    (tab === 'lodging' && loadingLodging) ||
+    (tab === 'income' && loadingIncome) ||
+    (tab === 'receipts' && loadingReceipts)
+
+  const vehicleRows = (vehiclesData?.data ?? []) as Record<string, unknown>[]
+  const lodgingRows = (lodgingData?.data ?? []) as Record<string, unknown>[]
 
   return (
     <div>
@@ -188,14 +351,14 @@ export default function ReportsPage() {
 
       {/* Tabs */}
       <div className={styles.tabs}>
-        {(['general', 'visitors', 'income'] as TabKey[]).map((t) => (
+        {(Object.keys(TAB_LABELS) as TabKey[]).map((t) => (
           <button
             key={t}
             type="button"
             className={[styles.tab, tab === t ? styles.tabActive : ''].filter(Boolean).join(' ')}
             onClick={() => setTab(t)}
           >
-            {{ general: 'General', visitors: 'Visitantes', income: 'Ingresos' }[t]}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
@@ -220,6 +383,32 @@ export default function ReportsPage() {
               )}
             </Card>
           )}
+          {tab === 'vehicles' && (
+            <Card padding="flush">
+              {!vehicleRows.length ? (
+                <EmptyState icon="🚗" title="Sin datos" description="No hay vehículos en el rango seleccionado." />
+              ) : (
+                <Table
+                  columns={vehicleColumns}
+                  data={vehicleRows}
+                  keyExtractor={(r) => String(r.id)}
+                />
+              )}
+            </Card>
+          )}
+          {tab === 'lodging' && (
+            <Card padding="flush">
+              {!lodgingRows.length ? (
+                <EmptyState icon="🏕️" title="Sin datos" description="No hay hospedajes en el rango seleccionado." />
+              ) : (
+                <Table
+                  columns={lodgingColumns}
+                  data={lodgingRows}
+                  keyExtractor={(r) => String(r.id)}
+                />
+              )}
+            </Card>
+          )}
           {tab === 'income' && (
             <Card padding="flush">
               {!incomeRows.length ? (
@@ -229,6 +418,19 @@ export default function ReportsPage() {
                   columns={incomeColumns}
                   data={incomeRows}
                   keyExtractor={(row) => String(row.conceptName ?? row.concept ?? JSON.stringify(row).slice(0, 30))}
+                />
+              )}
+            </Card>
+          )}
+          {tab === 'receipts' && (
+            <Card padding="flush">
+              {!receiptsRows.length ? (
+                <EmptyState icon="🧾" title="Sin transacciones" description="No hay recibos en el rango seleccionado." />
+              ) : (
+                <Table
+                  columns={receiptsColumns}
+                  data={receiptsRows}
+                  keyExtractor={(r) => String(r.id)}
                 />
               )}
             </Card>

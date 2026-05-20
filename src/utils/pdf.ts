@@ -14,6 +14,15 @@ function fmtDate(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+function getImageDimensions(dataUrl: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve({ w: img.naturalWidth || 200, h: img.naturalHeight || 80 })
+    img.onerror = () => resolve({ w: 200, h: 80 })
+    img.src = dataUrl
+  })
+}
+
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
   console.log('[PDF] Loading logo from:', url)
   // Primary: fetch → FileReader (works when server returns CORS headers)
@@ -78,13 +87,17 @@ async function drawHeader(doc: JsPDF, title: string, parkConfig?: ParkConfig | n
     const dataUrl = await loadImageAsDataUrl(logoAbsUrl)
     if (dataUrl) {
       console.log('[PDF] Logo inserted into PDF')
-      const logoH = 16
-      const logoW = 40
       const imgFmt = dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')
         ? 'JPEG'
         : dataUrl.startsWith('data:image/webp')
           ? 'WEBP'
           : 'PNG'
+      const dims = await getImageDimensions(dataUrl)
+      const maxW = 50
+      const maxH = 20
+      const scale = Math.min(maxW / dims.w, maxH / dims.h)
+      const logoW = parseFloat((dims.w * scale).toFixed(2))
+      const logoH = parseFloat((dims.h * scale).toFixed(2))
       doc.addImage(dataUrl, imgFmt, (pageW - logoW) / 2, startY, logoW, logoH)
       startY += logoH + 3
     } else {
@@ -269,12 +282,15 @@ export async function downloadReceiptPdf(receipt: Receipt, parkConfig?: ParkConf
 // ─── REPORT PDF ─────────────────────────────────────────────────────────────
 
 interface ReportPdfOpts {
-  tab: 'general' | 'visitors' | 'income'
+  tab: 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts'
   from: string
   to: string
   general?: Record<string, unknown>
   visitors?: Record<string, unknown>[]
+  vehicles?: Record<string, unknown>[]
+  lodging?: Record<string, unknown>[]
   income?: Record<string, unknown>[]
+  receipts?: Record<string, unknown>[]
   parkConfig?: ParkConfig | null
 }
 
@@ -283,8 +299,15 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
 
-  const tabLabel = { general: 'Reporte General', visitors: 'Reporte de Visitantes', income: 'Reporte de Ingresos' }[opts.tab]
-  let y = await drawHeader(doc, tabLabel, opts.parkConfig)
+  const tabLabels: Record<string, string> = {
+    general: 'Reporte General',
+    visitors: 'Reporte de Visitantes',
+    vehicles: 'Reporte de Vehículos',
+    lodging: 'Reporte de Hospedaje',
+    income: 'Reporte de Ingresos (Caja)',
+    receipts: 'Reporte de Transacciones',
+  }
+  let y = await drawHeader(doc, tabLabels[opts.tab] ?? opts.tab, opts.parkConfig)
 
   // Date range
   doc.setFont('helvetica', 'normal')
@@ -414,6 +437,121 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
     doc.setFont('helvetica', 'bold')
     doc.text('TOTAL', cols[0].x, y)
     doc.text(fmtQ(totalIncome), cols[2].x, y, { align: 'right' })
+  } else if (opts.tab === 'vehicles' && opts.vehicles?.length) {
+    const cols = [
+      { label: 'Placa', x: 14 },
+      { label: 'Tipo', x: 55 },
+      { label: 'Tarifa Q', x: 130 },
+      { label: 'Total Q', x: pageW - 14 },
+    ]
+    doc.setFillColor(245, 245, 245)
+    doc.rect(14, y - 4, pageW - 28, 7, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.text(cols[0].label, cols[0].x, y)
+    doc.text(cols[1].label, cols[1].x, y)
+    doc.text(cols[2].label, cols[2].x, y, { align: 'right' })
+    doc.text(cols[3].label, cols[3].x, y, { align: 'right' })
+    y += 5
+    doc.setDrawColor(200)
+    doc.line(14, y, pageW - 14, y)
+    y += 3
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    let totalVeh = 0
+    for (const r of opts.vehicles) {
+      if (y > 270) { doc.addPage(); y = 20 }
+      const typeName = (r.vehicleType as { name?: string } | null)?.name ?? '—'
+      const amount = toNum(r.totalAmount ?? 0)
+      totalVeh += amount
+      doc.text(String(r.plateNumber ?? '—'), cols[0].x, y)
+      doc.text(typeName.length > 20 ? typeName.slice(0, 20) + '…' : typeName, cols[1].x, y)
+      doc.text(fmtQ(r.appliedRate), cols[2].x, y, { align: 'right' })
+      doc.text(fmtQ(amount), cols[3].x, y, { align: 'right' })
+      y += 5
+    }
+    y += 3
+    doc.line(14, y, pageW - 14, y)
+    y += 5
+    doc.setFont('helvetica', 'bold')
+    doc.text('TOTAL', cols[0].x, y)
+    doc.text(fmtQ(totalVeh), cols[3].x, y, { align: 'right' })
+  } else if (opts.tab === 'lodging' && opts.lodging?.length) {
+    const cols = [
+      { label: 'Tipo', x: 14 },
+      { label: 'Fecha', x: 70 },
+      { label: 'Noches', x: 105 },
+      { label: 'Huésp.', x: 130 },
+      { label: 'Total Q', x: pageW - 14 },
+    ]
+    doc.setFillColor(245, 245, 245)
+    doc.rect(14, y - 4, pageW - 28, 7, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    for (const col of cols) doc.text(col.label, col.x, y)
+    y += 5
+    doc.setDrawColor(200)
+    doc.line(14, y, pageW - 14, y)
+    y += 3
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    let totalLod = 0
+    for (const r of opts.lodging) {
+      if (y > 270) { doc.addPage(); y = 20 }
+      const typeName = (r.lodgingType as { name?: string } | null)?.name ?? '—'
+      const amount = toNum(r.totalAmount ?? 0)
+      totalLod += amount
+      doc.text(typeName.length > 22 ? typeName.slice(0, 22) + '…' : typeName, cols[0].x, y)
+      doc.text(String(r.recordDate ?? '—'), cols[1].x, y)
+      doc.text(String(r.nights ?? '—'), cols[2].x, y)
+      doc.text(String(r.guests ?? '—'), cols[3].x, y)
+      doc.text(fmtQ(amount), cols[4].x, y, { align: 'right' })
+      y += 5
+    }
+    y += 3
+    doc.line(14, y, pageW - 14, y)
+    y += 5
+    doc.setFont('helvetica', 'bold')
+    doc.text('TOTAL', cols[0].x, y)
+    doc.text(fmtQ(totalLod), cols[4].x, y, { align: 'right' })
+  } else if (opts.tab === 'receipts' && opts.receipts?.length) {
+    const cols = [
+      { label: 'No. Recibo', x: 14 },
+      { label: 'Origen', x: 55 },
+      { label: 'Método', x: 100 },
+      { label: 'Estado', x: 145 },
+      { label: 'Total Q', x: pageW - 14 },
+    ]
+    doc.setFillColor(245, 245, 245)
+    doc.rect(14, y - 4, pageW - 28, 7, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    for (const col of cols) doc.text(col.label, col.x, y)
+    y += 5
+    doc.setDrawColor(200)
+    doc.line(14, y, pageW - 14, y)
+    y += 3
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    let totalRec = 0
+    for (const r of opts.receipts) {
+      if (y > 270) { doc.addPage(); y = 20 }
+      const methodName = (r.paymentMethod as { name?: string } | null)?.name ?? '—'
+      const amount = toNum(r.total ?? 0)
+      if (r.status !== 'CANCELADO') totalRec += amount
+      doc.text(String(r.receiptNumber ?? '—'), cols[0].x, y)
+      doc.text(String(r.originType ?? '—'), cols[1].x, y)
+      doc.text(methodName.length > 18 ? methodName.slice(0, 18) + '…' : methodName, cols[2].x, y)
+      doc.text(String(r.status ?? '—'), cols[3].x, y)
+      doc.text(fmtQ(amount), cols[4].x, y, { align: 'right' })
+      y += 5
+    }
+    y += 3
+    doc.line(14, y, pageW - 14, y)
+    y += 5
+    doc.setFont('helvetica', 'bold')
+    doc.text('TOTAL ACTIVOS', cols[0].x, y)
+    doc.text(fmtQ(totalRec), cols[4].x, y, { align: 'right' })
   } else {
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(10)
@@ -424,6 +562,9 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
 
   drawFooter(doc)
 
-  const tabFile = { general: 'resumen', visitors: 'visitantes', income: 'ingresos' }[opts.tab]
-  doc.save(`reporte-${tabFile}-${opts.from}.pdf`)
+  const tabFiles: Record<string, string> = {
+    general: 'resumen', visitors: 'visitantes', vehicles: 'vehiculos',
+    lodging: 'hospedaje', income: 'ingresos', receipts: 'transacciones',
+  }
+  doc.save(`reporte-${tabFiles[opts.tab] ?? opts.tab}-${opts.from}.pdf`)
 }

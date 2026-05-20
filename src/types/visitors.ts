@@ -63,9 +63,16 @@ export interface CreateVisitorDto {
   source?: string
   reasonIds?: number[]
   activityIds?: number[]
+  companions?: {
+    visitorCategoryId: number
+    quantity: number
+    isForeign?: boolean
+    appliedRate: number
+    totalAmount: number
+  }[]
 }
 
-export interface UpdateVisitorDto extends Partial<CreateVisitorDto> {}
+export interface UpdateVisitorDto extends Partial<Omit<CreateVisitorDto, 'companions'>> {}
 
 export interface VisitorTodaySummary {
   total: number
