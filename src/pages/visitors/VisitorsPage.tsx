@@ -205,12 +205,17 @@ export default function VisitorsPage() {
 
   useEffect(() => {
     if (!editRecord) return
+    // primary line subtotal = rate × quantity (stored totalAmount may already
+    // include companions; we keep the modal's "totalAmount" as primary-only)
+    const primarySubtotal = parseFloat(
+      (Number(editRecord.appliedRate) * Number(editRecord.quantity)).toFixed(2),
+    )
     reset({
       visitorCategoryId: editRecord.visitorCategoryId,
       quantity: editRecord.quantity,
       isForeign: editRecord.isForeign ?? false,
       appliedRate: editRecord.appliedRate,
-      totalAmount: editRecord.totalAmount,
+      totalAmount: primarySubtotal,
       countryId: editRecord.countryId ?? undefined,
       departmentId: editRecord.departmentId ?? undefined,
       municipalityId: editRecord.municipalityId ?? undefined,
@@ -226,6 +231,13 @@ export default function VisitorsPage() {
       observations: editRecord.observations ?? '',
       reasonIds: editRecord.reasons?.map(r => r.id) ?? [],
       activityIds: editRecord.activities?.map(a => a.id) ?? [],
+      companions: (editRecord.companions ?? []).map((c) => ({
+        visitorCategoryId: c.visitorCategoryId,
+        quantity: c.quantity,
+        isForeign: c.isForeign ?? false,
+        appliedRate: Number(c.appliedRate),
+        totalAmount: Number(c.totalAmount),
+      })),
     })
   }, [editRecord, reset])
 
@@ -321,9 +333,7 @@ export default function VisitorsPage() {
       })) : undefined,
     }
     if (editId) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { companions: _c, ...updateDto } = dto
-      await updateMutation.mutateAsync({ id: editId, dto: updateDto })
+      await updateMutation.mutateAsync({ id: editId, dto })
     } else {
       await createMutation.mutateAsync(dto)
     }
@@ -333,7 +343,7 @@ export default function VisitorsPage() {
   const meta = data?.meta as PaginatedMeta | undefined
 
   const columns = [
-    { key: 'ticketNumber', header: 'Ticket', width: '100px' },
+    { key: 'ticketNumber', header: 'No. ticket', width: '110px' },
     {
       key: 'category',
       header: 'Categoría',
@@ -596,35 +606,31 @@ export default function VisitorsPage() {
           </div>
         </div>
 
-        {/* Acompañantes */}
-        {!editId && (
-          <>
-            <div className={styles.divider} />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div className={styles.sectionLabel} style={{ marginBottom: 0 }}>Acompañantes</div>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={() => appendCompanion({ visitorCategoryId: 0, quantity: 1, isForeign: false, appliedRate: 0, totalAmount: 0 })}
-              >
-                + Agregar acompañante
-              </Button>
-            </div>
-            {companionFields.map((field, idx) => (
-              <CompanionRow
-                key={field.id}
-                index={idx}
-                control={control}
-                setValue={setValue}
-                categories={categories}
-                remove={() => removeCompanion(idx)}
-              />
-            ))}
-            {companionFields.length > 0 && (
-              <CompanionGrandTotal control={control} watchRate={watchRate} watchQty={watchQty} />
-            )}
-          </>
+        {/* Acompañantes — visible tanto al crear como al editar */}
+        <div className={styles.divider} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div className={styles.sectionLabel} style={{ marginBottom: 0 }}>Acompañantes</div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => appendCompanion({ visitorCategoryId: 0, quantity: 1, isForeign: false, appliedRate: 0, totalAmount: 0 })}
+          >
+            + Agregar acompañante
+          </Button>
+        </div>
+        {companionFields.map((field, idx) => (
+          <CompanionRow
+            key={field.id}
+            index={idx}
+            control={control}
+            setValue={setValue}
+            categories={categories}
+            remove={() => removeCompanion(idx)}
+          />
+        ))}
+        {companionFields.length > 0 && (
+          <CompanionGrandTotal control={control} watchRate={watchRate} watchQty={watchQty} />
         )}
 
         <div className={styles.divider} />

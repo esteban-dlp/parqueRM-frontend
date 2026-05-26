@@ -62,6 +62,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const canViewLodging = usePermission(PERMISSIONS.HOSPEDAJE_READ)
   const canViewCaja = usePermission(PERMISSIONS.CAJA_READ)
   const canViewReceipts = usePermission(PERMISSIONS.RECEIPTS_READ)
+  const canCreateReceipts = usePermission(PERMISSIONS.RECEIPTS_CREATE)
   const canViewReports = usePermission(PERMISSIONS.REPORTES_READ)
   const canViewConfig = usePermission(PERMISSIONS.CONFIG_READ)
   const canViewCatalogs = usePermission(PERMISSIONS.CATALOGS_READ)
@@ -186,12 +187,25 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           {canViewReceipts && (
             <NavItem
               to="/recibos"
-              label="Recibos"
+              label="Tickets"
               onNavigate={onClose}
               icon={
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M4 2h8a1 1 0 011 1v11l-2-1.5L9 14l-2-1.5L5 14l-2-1.5V3a1 1 0 011-1z" />
                   <path d="M6 6h4M6 9h3" />
+                </svg>
+              }
+            />
+          )}
+          {canCreateReceipts && (
+            <NavItem
+              to="/cobro"
+              label="Cobrar servicio"
+              onNavigate={onClose}
+              icon={
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <circle cx="8" cy="8" r="7" />
+                  <path d="M8 4v8M5 7h6M5 10h6" />
                 </svg>
               }
             />

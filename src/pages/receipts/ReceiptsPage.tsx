@@ -61,9 +61,9 @@ export default function ReceiptsPage() {
       qc.invalidateQueries({ queryKey: ['receipts'] })
       setCancelId(null)
       resetCancel()
-      toast.success('Recibo anulado')
+      toast.success('Ticket anulado')
     },
-    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al anular recibo')),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al anular ticket')),
   })
 
   const printMutation = useMutation({
@@ -81,7 +81,7 @@ export default function ReceiptsPage() {
   const meta = data?.meta as PaginatedMeta | undefined
 
   const columns = [
-    { key: 'receiptNumber', header: 'No. Recibo', width: '120px' },
+    { key: 'receiptNumber', header: 'No. ticket', width: '120px' },
     {
       key: 'contributorName',
       header: 'Contribuyente',
@@ -153,7 +153,7 @@ export default function ReceiptsPage() {
 
   return (
     <div>
-      <PageHeader title="Recibos" subtitle="Historial de recibos emitidos" />
+      <PageHeader title="Tickets" subtitle="Historial de tickets emitidos" />
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 14 }}>
@@ -201,7 +201,7 @@ export default function ReceiptsPage() {
         {isLoading ? (
           <Loading />
         ) : rows.length === 0 ? (
-          <EmptyState icon="🧾" title="Sin recibos" description="Aún no se han emitido recibos." />
+          <EmptyState icon="🧾" title="Sin tickets" description="Aún no se han emitido tickets." />
         ) : (
           <>
             <Table columns={columns} data={rows} keyExtractor={(r) => r.id} />
@@ -215,7 +215,7 @@ export default function ReceiptsPage() {
       <Modal
         isOpen={cancelId !== null}
         onClose={() => { setCancelId(null); resetCancel() }}
-        title="Anular recibo"
+        title="Anular ticket"
         size="narrow"
         footer={
           <>

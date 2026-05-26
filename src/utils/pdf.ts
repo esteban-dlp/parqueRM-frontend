@@ -172,10 +172,16 @@ export async function downloadReceiptPdf(receipt: Receipt, parkConfig?: ParkConf
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
 
-  let y = await drawHeader(doc, 'RECIBO DE PAGO', parkConfig)
+  let y = await drawHeader(doc, 'TICKET DE PAGO', parkConfig)
 
   // Metadata block
-  y = row(doc, 'No. Recibo:', receipt.receiptNumber, y)
+  y = row(doc, 'No. ticket:', receipt.receiptNumber, y)
+  if (parkConfig?.ticketVersion) {
+    y = row(doc, 'Versión ticket:', parkConfig.ticketVersion, y)
+  }
+  if (parkConfig?.ruv) {
+    y = row(doc, 'RUV:', parkConfig.ruv, y)
+  }
   y = row(doc, 'Fecha:', fmtDate(receipt.receiptDate ?? receipt.createdAt), y)
   y = row(doc, 'Contribuyente:', receipt.contributorName ?? 'Consumidor final', y)
   if (receipt.contributorDocument) {
@@ -270,12 +276,12 @@ export async function downloadReceiptPdf(receipt: Receipt, parkConfig?: ParkConf
   doc.setFont('helvetica', 'italic')
   doc.setFontSize(8)
   doc.setTextColor(120)
-  doc.text('Este recibo es válido como comprobante de pago.', pageW / 2, y, { align: 'center' })
+  doc.text('Este ticket es válido como comprobante de pago.', pageW / 2, y, { align: 'center' })
   doc.setTextColor(0)
 
   drawFooter(doc)
 
-  const filename = `recibo-${receipt.receiptNumber.replace(/\//g, '-')}.pdf`
+  const filename = `ticket-${receipt.receiptNumber.replace(/\//g, '-')}.pdf`
   doc.save(filename)
 }
 
@@ -305,7 +311,7 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
     vehicles: 'Reporte de Vehículos',
     lodging: 'Reporte de Hospedaje',
     income: 'Reporte de Ingresos (Caja)',
-    receipts: 'Reporte de Transacciones',
+    receipts: 'Reporte de Tickets',
   }
   let y = await drawHeader(doc, tabLabels[opts.tab] ?? opts.tab, opts.parkConfig)
 
@@ -516,7 +522,7 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
     doc.text(fmtQ(totalLod), cols[4].x, y, { align: 'right' })
   } else if (opts.tab === 'receipts' && opts.receipts?.length) {
     const cols = [
-      { label: 'No. Recibo', x: 14 },
+      { label: 'No. ticket', x: 14 },
       { label: 'Origen', x: 55 },
       { label: 'Método', x: 100 },
       { label: 'Estado', x: 145 },

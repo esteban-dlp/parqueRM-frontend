@@ -12,6 +12,8 @@ export interface ParkConfig {
   systemLanUrl: string | null
   maxCapacity: number
   sidebarColorHex: string | null
+  ticketVersion: string | null
+  ruv: string | null
   createdAt: string
   updatedAt: string | null
 }
@@ -29,4 +31,6 @@ export interface UpdateParkConfigDto {
   systemLanUrl?: string
   maxCapacity?: number
   sidebarColorHex?: string
+  ticketVersion?: string
+  ruv?: string
 }

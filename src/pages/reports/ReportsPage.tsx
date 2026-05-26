@@ -26,6 +26,20 @@ async function downloadXlsx(sheetData: Record<string, unknown>[], filename: stri
   XLSX.writeFile(wb, filename)
 }
 
+type SheetSpec = { name: string; rows: Record<string, unknown>[] }
+
+async function downloadMultiSheetXlsx(sheets: SheetSpec[], filename: string) {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  for (const s of sheets) {
+    const ws = XLSX.utils.json_to_sheet(s.rows.length ? s.rows : [{ '_': 'Sin datos' }])
+    // sheet names are limited to 31 chars, no special chars
+    const safe = s.name.replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31)
+    XLSX.utils.book_append_sheet(wb, ws, safe)
+  }
+  XLSX.writeFile(wb, filename)
+}
+
 type TabKey = 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts'
 
 const TAB_LABELS: Record<TabKey, string> = {
@@ -34,7 +48,7 @@ const TAB_LABELS: Record<TabKey, string> = {
   vehicles: 'Vehículos',
   lodging: 'Hospedaje',
   income: 'Ingresos (Caja)',
-  receipts: 'Transacciones',
+  receipts: 'Tickets',
 }
 
 export default function ReportsPage() {
@@ -95,16 +109,63 @@ export default function ReportsPage() {
     if (tab === 'visitors') {
       const rows = (visitorsData?.data ?? []) as unknown as Record<string, unknown>[]
       if (!rows.length) { toast.error('No hay datos para exportar'); return }
-      const flat = rows.map((r) => ({
-        Ticket: r.ticketNumber,
-        Nombre: r.fullName ?? '—',
-        Categoría: r.categoryName,
-        Cantidad: r.quantity,
-        'Total Q': r.totalAmount,
-        Ingreso: r.checkInAt,
-        Salida: r.checkOutAt ?? '—',
-      }))
-      await downloadXlsx(flat, `visitantes-${from}.xlsx`)
+      // Hoja 1: cabecera por visitante; Hoja 2: cada línea de cobro (principal + acompañantes)
+      const headers = rows.map((r) => {
+        const companions = (r.companions as unknown as Array<{ totalAmount: number }> | undefined) ?? []
+        const companionSum = companions.reduce((s, c) => s + Number(c.totalAmount ?? 0), 0)
+        return {
+          'No. ticket': r.ticketNumber,
+          Nombre: r.fullName ?? '—',
+          'Categoría principal': (r.visitorCategory as { name?: string } | undefined)?.name
+            ?? (r.categoryName as string | undefined)
+            ?? '—',
+          'Cant. principal': r.quantity,
+          'Tarifa principal Q': r.appliedRate,
+          'Acompañantes (líneas)': companions.length,
+          'Subtotal acompañantes Q': companionSum,
+          'Total Q': r.totalAmount,
+          'Es extranjero': r.isForeign ? 'Sí' : 'No',
+          Ingreso: r.checkInAt,
+          Salida: r.checkOutAt ?? '—',
+        }
+      })
+      const lines: Record<string, unknown>[] = []
+      for (const r of rows) {
+        lines.push({
+          'No. ticket': r.ticketNumber,
+          'Tipo línea': 'Principal',
+          Categoría: (r.visitorCategory as { name?: string } | undefined)?.name ?? '—',
+          Cantidad: r.quantity,
+          'Precio unit Q': r.appliedRate,
+          'Total línea Q': Number(r.appliedRate ?? 0) * Number(r.quantity ?? 1),
+          'Es extranjero': r.isForeign ? 'Sí' : 'No',
+        })
+        const companions = (r.companions as unknown as Array<{
+          visitorCategory?: { name?: string }
+          quantity: number
+          appliedRate: number
+          totalAmount: number
+          isForeign?: boolean
+        }> | undefined) ?? []
+        for (const c of companions) {
+          lines.push({
+            'No. ticket': r.ticketNumber,
+            'Tipo línea': 'Acompañante',
+            Categoría: c.visitorCategory?.name ?? '—',
+            Cantidad: c.quantity,
+            'Precio unit Q': c.appliedRate,
+            'Total línea Q': c.totalAmount,
+            'Es extranjero': c.isForeign ? 'Sí' : 'No',
+          })
+        }
+      }
+      await downloadMultiSheetXlsx(
+        [
+          { name: 'Visitantes', rows: headers },
+          { name: 'Líneas (principal+acomp)', rows: lines },
+        ],
+        `visitantes-${from}.xlsx`,
+      )
     } else if (tab === 'vehicles') {
       const rows = (vehiclesData?.data ?? []) as Record<string, unknown>[]
       if (!rows.length) { toast.error('No hay datos para exportar'); return }
@@ -135,22 +196,65 @@ export default function ReportsPage() {
       const flat = rows.map((r) => ({
         Concepto: (r.concept as { name?: string } | null)?.name ?? String(r.conceptName ?? ''),
         'Método de pago': (r.paymentMethod as { name?: string } | null)?.name ?? String(r.paymentMethodName ?? ''),
+        Origen: r.originType ?? '—',
+        'No. ticket relacionado': r.receiptId ?? '—',
         'Monto Q': r.amount ?? r.total ?? 0,
+        Estado: r.status,
+        Fecha: r.movementDate ?? r.createdAt,
       }))
       await downloadXlsx(flat, `ingresos-${from}.xlsx`)
     } else if (tab === 'receipts') {
       const rows = (receiptsData?.data ?? []) as Record<string, unknown>[]
       if (!rows.length) { toast.error('No hay datos para exportar'); return }
-      const flat = rows.map((r) => ({
-        'No. Recibo': r.receiptNumber,
+      // Hoja 1: cabecera del ticket; Hoja 2: cada línea
+      const headers = rows.map((r) => ({
+        'No. ticket': r.receiptNumber,
         Contribuyente: r.contributorName ?? '—',
+        Documento: r.contributorDocument ?? '—',
         Origen: r.originType,
+        'ID origen': r.originId ?? '—',
         'Método de pago': (r.paymentMethod as { name?: string } | null)?.name ?? '—',
+        'Subtotal Q': r.subtotal ?? '—',
+        'Descuento Q': r.discountAmount ?? 0,
         'Total Q': r.total,
+        Recibido: r.amountReceived ?? '—',
+        Cambio: r.changeAmount ?? '—',
         Estado: r.status,
-        Fecha: r.receiptDate ?? r.createdAt,
+        Emitido: r.receiptDate ?? r.createdAt,
+        'Emitido por': (r.createdByUser as { fullName?: string } | undefined)?.fullName ?? '—',
       }))
-      await downloadXlsx(flat, `transacciones-${from}.xlsx`)
+      const lines: Record<string, unknown>[] = []
+      for (const r of rows) {
+        const rowLines = (r.lines as Array<{
+          description?: string; quantity: number; unitPrice: number; total: number
+        }> | undefined) ?? []
+        if (!rowLines.length) {
+          lines.push({
+            'No. ticket': r.receiptNumber,
+            Descripción: '—',
+            Cantidad: '—',
+            'Precio unit Q': '—',
+            'Total línea Q': r.total,
+          })
+          continue
+        }
+        for (const l of rowLines) {
+          lines.push({
+            'No. ticket': r.receiptNumber,
+            Descripción: l.description ?? '—',
+            Cantidad: l.quantity,
+            'Precio unit Q': l.unitPrice,
+            'Total línea Q': l.total,
+          })
+        }
+      }
+      await downloadMultiSheetXlsx(
+        [
+          { name: 'Tickets', rows: headers },
+          { name: 'Líneas de ticket', rows: lines },
+        ],
+        `tickets-${from}.xlsx`,
+      )
     } else if (tab === 'general' && general) {
       const rows = [
         { Indicador: 'Visitantes', Valor: general.totalVisitors },
@@ -180,7 +284,7 @@ export default function ReportsPage() {
   }
 
   const visitorColumns = [
-    { key: 'ticketNumber', header: 'Ticket', width: '100px' },
+    { key: 'ticketNumber', header: 'No. ticket', width: '110px' },
     { key: 'fullName', header: 'Nombre', render: (r: ReportVisitorRow) => r.fullName ?? '—' },
     { key: 'categoryName', header: 'Categoría' },
     { key: 'quantity', header: 'Cant.', width: '60px' },
@@ -286,7 +390,7 @@ export default function ReportsPage() {
   const receiptsRows = (receiptsData?.data ?? []) as Record<string, unknown>[]
 
   const receiptsColumns = [
-    { key: 'receiptNumber', header: 'No. Recibo', width: '120px', render: (r: Record<string, unknown>) => String(r.receiptNumber ?? '—') },
+    { key: 'receiptNumber', header: 'No. ticket', width: '120px', render: (r: Record<string, unknown>) => String(r.receiptNumber ?? '—') },
     { key: 'originType', header: 'Origen', render: (r: Record<string, unknown>) => <Badge variant="blue">{String(r.originType ?? '—')}</Badge> },
     {
       key: 'paymentMethod',
@@ -425,7 +529,7 @@ export default function ReportsPage() {
           {tab === 'receipts' && (
             <Card padding="flush">
               {!receiptsRows.length ? (
-                <EmptyState icon="🧾" title="Sin transacciones" description="No hay recibos en el rango seleccionado." />
+                <EmptyState icon="🧾" title="Sin tickets" description="No hay tickets en el rango seleccionado." />
               ) : (
                 <Table
                   columns={receiptsColumns}

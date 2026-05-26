@@ -31,6 +31,8 @@ function buildFormDefaults(config: ParkConfig | null): UpdateParkConfigDto & { s
     maxCapacity: config?.maxCapacity ?? 150,
     systemLanUrl: config?.systemLanUrl ?? '',
     sidebarColorHex: config?.sidebarColorHex ?? SIDEBAR_COLOR_FALLBACK,
+    ticketVersion: config?.ticketVersion ?? 'v1.0',
+    ruv: config?.ruv ?? '',
   }
 }
 
@@ -133,6 +135,8 @@ export default function ConfigPage() {
       sidebarColorHex: values.sidebarColorHex && HEX_REGEX.test(values.sidebarColorHex)
         ? values.sidebarColorHex
         : undefined,
+      ticketVersion: values.ticketVersion || undefined,
+      ruv: values.ruv || undefined,
     }
     await updateMutation.mutateAsync(dto)
   }
@@ -302,6 +306,21 @@ export default function ConfigPage() {
           </div>
 
           <Input label="URL de la red local (LAN)" {...register('systemLanUrl')} />
+
+          <div className={styles.formGrid2} style={{ marginTop: 10 }}>
+            <Input
+              label="Versión de ticket / boleta"
+              placeholder="v1.0"
+              hint="Se imprime en los tickets emitidos"
+              {...register('ticketVersion')}
+            />
+            <Input
+              label="RUV (Registro único de venta)"
+              placeholder="RUV-2026-001"
+              hint="Identificador oficial para reportes / SICOIN"
+              {...register('ruv')}
+            />
+          </div>
 
           {canEdit && (
             <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>

@@ -27,7 +27,7 @@ import styles from './TariffsPage.module.css'
 
 const schema = z.object({
   name: z.string().min(1, 'Nombre requerido'),
-  appliesTo: z.enum(['VISITANTE', 'VEHICULO', 'HOSPEDAJE']),
+  appliesTo: z.enum(['VISITANTE', 'VEHICULO', 'HOSPEDAJE', 'SERVICIO']),
   serviceId: z.coerce.number().min(1, 'Servicio requerido'),
   amountLocal: z.coerce.number().min(0, 'Monto nacional requerido'),
   amountForeign: z.coerce.number().min(0, 'Monto extranjero requerido'),
@@ -299,6 +299,7 @@ export default function TariffsPage() {
               { value: 'VISITANTE', label: 'Visitante' },
               { value: 'VEHICULO', label: 'Vehículo' },
               { value: 'HOSPEDAJE', label: 'Hospedaje' },
+              { value: 'SERVICIO', label: 'Servicio (camping, guía, etc.)' },
             ]}
             placeholder="— Tipo —"
             error={errors.appliesTo?.message}

@@ -6,7 +6,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/visitantes': 'Operaciones / Registro de visitantes',
   '/vehiculos': 'Operaciones / Registro de vehículos',
   '/hospedaje': 'Operaciones / Hospedaje',
-  '/recibos': 'Operaciones / Recibos',
+  '/recibos': 'Operaciones / Tickets',
   '/cobro': 'Operaciones / Nuevo cobro',
   '/caja': 'Finanzas / Control financiero',
   '/caja/cierres': 'Finanzas / Cierre de caja',

@@ -166,12 +166,27 @@ export default function CobroPage() {
       if (originVisitor.fullName) setValue('contributorName', originVisitor.fullName)
       if (originVisitor.identificationNumber) setValue('contributorDocument', originVisitor.identificationNumber)
       const categoryName = originVisitor.visitorCategory?.name ?? 'General'
-      setValue('lines', [{
+      const primarySubtotal = parseFloat(
+        (Number(originVisitor.appliedRate) * Number(originVisitor.quantity)).toFixed(2),
+      )
+      const primaryLine = {
         description: `Ingreso de visitantes (${categoryName})`,
-        quantity: originVisitor.quantity,
-        unitPrice: originVisitor.appliedRate,
-        total: originVisitor.totalAmount,
-      }])
+        quantity: Number(originVisitor.quantity),
+        unitPrice: Number(originVisitor.appliedRate),
+        // Source of truth: rate × quantity, not the visitor totalAmount which
+        // already includes companions.
+        total: primarySubtotal,
+      }
+      const companionLines = (originVisitor.companions ?? []).map((c) => {
+        const name = c.visitorCategory?.name ?? `Cat#${c.visitorCategoryId}`
+        return {
+          description: `Ingreso de visitantes (${name})`,
+          quantity: Number(c.quantity),
+          unitPrice: Number(c.appliedRate),
+          total: parseFloat((Number(c.appliedRate) * Number(c.quantity)).toFixed(2)),
+        }
+      })
+      setValue('lines', [primaryLine, ...companionLines])
     } else if (originType === 'VEHICULO' && originVehicle) {
       hasPrefilled.current = true
       const typeName = originVehicle.vehicleType?.name ?? 'Vehículo'
@@ -198,11 +213,24 @@ export default function CobroPage() {
   const createMutation = useMutation({
     mutationFn: receiptsApi.create,
     onSuccess: (receipt) => {
-      qc.invalidateQueries({ queryKey: ['receipts'] })
-      toast.success('Recibo emitido correctamente')
+      // Invalidate everything that depends on receipts/movements so the
+      // dashboard, cash, visitors and reports refresh in real time.
+      qc.invalidateQueries({
+        predicate: (q) => {
+          const key = String(q.queryKey[0] ?? '')
+          return (
+            key.startsWith('receipts') ||
+            key.startsWith('dashboard') ||
+            key.startsWith('cash') ||
+            key.startsWith('visitors') ||
+            key.startsWith('reports')
+          )
+        },
+      })
+      toast.success('Ticket emitido correctamente')
       setIssuedReceipt(receipt)
     },
-    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al emitir recibo')),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al emitir ticket')),
   })
 
   async function onSubmit(values: FormValues) {
@@ -252,12 +280,12 @@ export default function CobroPage() {
   if (issuedReceipt) {
     return (
       <div>
-        <PageHeader title="Cobro" subtitle="Recibo emitido" />
+        <PageHeader title="Cobro" subtitle="Ticket emitido" />
         <Card>
           <div className={styles.successBox}>
             <div className={styles.successIcon}>✓</div>
-            <div className={styles.successTitle}>Recibo emitido correctamente</div>
-            <div className={styles.successNumber}>No. {issuedReceipt.receiptNumber}</div>
+            <div className={styles.successTitle}>Ticket emitido correctamente</div>
+            <div className={styles.successNumber}>No. ticket: {issuedReceipt.receiptNumber}</div>
           </div>
           <div className={styles.receiptPreview}>
             {parkConfig?.logoUrl && (
@@ -317,7 +345,7 @@ export default function CobroPage() {
               Descargar PDF
             </Button>
             <Button variant="secondary" onClick={() => receiptsApi.triggerPrint(issuedReceipt.id)}>
-              Imprimir recibo
+              Imprimir ticket
             </Button>
             <Button variant="primary" onClick={handleNewReceipt}>
               Nuevo cobro
@@ -343,7 +371,7 @@ export default function CobroPage() {
     <div>
       <PageHeader
         title="Cobro"
-        subtitle={nextNumber ? `Próximo recibo: ${nextNumber.receiptNumber}` : 'Emitir recibo'}
+        subtitle={nextNumber ? `Próximo No. ticket: ${nextNumber.receiptNumber}` : 'Emitir ticket'}
         actions={
           originId ? (
             <Button variant="ghost" onClick={() => navigate(backPath)}>
@@ -574,7 +602,7 @@ export default function CobroPage() {
 
             {createMutation.isError && (
               <div className={styles.errorBox} style={{ marginTop: 12 }}>
-                {getApiErrorMessage(createMutation.error, 'Error al emitir el recibo')}
+                {getApiErrorMessage(createMutation.error, 'Error al emitir el ticket')}
               </div>
             )}
 
@@ -584,7 +612,7 @@ export default function CobroPage() {
               onClick={handleSubmit(onSubmit)}
               disabled={isSubmitting || createMutation.isPending || grandTotal <= 0}
             >
-              {isSubmitting || createMutation.isPending ? 'Emitiendo…' : `Emitir recibo — ${formatCurrency(grandTotal)}`}
+              {isSubmitting || createMutation.isPending ? 'Emitiendo…' : `Emitir ticket — ${formatCurrency(grandTotal)}`}
             </Button>
           </Card>
         </div>

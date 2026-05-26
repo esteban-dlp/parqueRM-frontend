@@ -1,5 +1,15 @@
 import type { PaginationParams } from './api'
 
+export interface VisitorCompanionLine {
+  id?: number
+  visitorCategoryId: number
+  visitorCategory?: { id: number; name: string }
+  quantity: number
+  appliedRate: number
+  totalAmount: number
+  isForeign: boolean
+}
+
 export interface VisitorRecord {
   id: number
   ticketNumber: string
@@ -33,6 +43,7 @@ export interface VisitorRecord {
   source: string | null
   reasons?: { id: number; name: string }[]
   activities?: { id: number; name: string }[]
+  companions?: VisitorCompanionLine[]
   createdAt: string
   updatedAt: string
 }
@@ -72,7 +83,7 @@ export interface CreateVisitorDto {
   }[]
 }
 
-export interface UpdateVisitorDto extends Partial<Omit<CreateVisitorDto, 'companions'>> {}
+export interface UpdateVisitorDto extends Partial<CreateVisitorDto> {}
 
 export interface VisitorTodaySummary {
   total: number

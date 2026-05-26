@@ -1,6 +1,6 @@
 import type { PaginationParams } from './api'
 
-export type TariffAppliesTo = 'VISITANTE' | 'VEHICULO' | 'HOSPEDAJE'
+export type TariffAppliesTo = 'VISITANTE' | 'VEHICULO' | 'HOSPEDAJE' | 'SERVICIO'
 
 export interface Tariff {
   id: number
