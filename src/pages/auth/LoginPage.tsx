@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { authApi } from '@/api/auth.api'
+import { getApiErrorMessage } from '@/api/client'
 import { useAuth } from '@/hooks/useAuth'
 import { Input } from '@/components/ui/Input'
 import styles from './LoginPage.module.css'
@@ -40,11 +41,7 @@ export default function LoginPage() {
       login(result.user, result.accessToken, result.refreshToken)
       navigate(from, { replace: true })
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'Error al iniciar sesión. Verifica tus credenciales.'
-      setServerError(msg)
+      setServerError(getApiErrorMessage(err, 'Error al iniciar sesión. Verifica tus credenciales.'))
     }
   }
 

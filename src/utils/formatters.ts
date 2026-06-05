@@ -1,6 +1,10 @@
+export const GUATEMALA_TIME_ZONE = 'America/Guatemala'
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
 /**
  * Convierte cualquier valor (string, number, null, undefined) a number seguro.
- * Los strings numéricos del backend ("25.00") se convierten correctamente.
+ * Los strings numericos del backend ("25.00") se convierten correctamente.
  */
 export function toNum(value: unknown): number {
   if (value == null) return 0
@@ -13,10 +17,31 @@ export function formatCurrency(amount: unknown): string {
   return `Q ${toNum(amount).toFixed(2)}`
 }
 
-/** Formatea una fecha ISO a formato legible en español. */
+function formatDateOnly(date: string): string {
+  const [year, month, day] = date.split('-')
+  return `${day}/${month}/${year}`
+}
+
+function getGuatemalaParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: GUATEMALA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+
+  return Object.fromEntries(parts.map((part) => [part.type, part.value]))
+}
+
+/** Formatea una fecha ISO a formato legible en espanol. */
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
+  if (!iso) return '\u2014'
+  if (DATE_ONLY_RE.test(iso)) return formatDateOnly(iso)
   return new Date(iso).toLocaleDateString('es-GT', {
+    timeZone: GUATEMALA_TIME_ZONE,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -25,8 +50,10 @@ export function formatDate(iso: string | null | undefined): string {
 
 /** Formatea fecha + hora. */
 export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
+  if (!iso) return '\u2014'
+  if (DATE_ONLY_RE.test(iso)) return formatDateOnly(iso)
   return new Date(iso).toLocaleString('es-GT', {
+    timeZone: GUATEMALA_TIME_ZONE,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -37,8 +64,9 @@ export function formatDateTime(iso: string | null | undefined): string {
 
 /** Formatea solo la hora desde un ISO string. */
 export function formatTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
+  if (!iso) return '\u2014'
   return new Date(iso).toLocaleTimeString('es-GT', {
+    timeZone: GUATEMALA_TIME_ZONE,
     hour: '2-digit',
     minute: '2-digit',
   })
@@ -46,21 +74,20 @@ export function formatTime(iso: string | null | undefined): string {
 
 /** Devuelve la fecha de hoy en formato YYYY-MM-DD para inputs type="date". */
 export function todayISO(): string {
-  return new Date().toISOString().split('T')[0]
+  const parts = getGuatemalaParts()
+  return `${parts.year}-${parts.month}-${parts.day}`
 }
 
-/** Devuelve la fecha y hora actual en formato ISO local. */
+/** Devuelve la fecha y hora actual en formato ISO local de Guatemala. */
 export function nowISO(): string {
-  const now = new Date()
-  const offset = now.getTimezoneOffset()
-  const local = new Date(now.getTime() - offset * 60 * 1000)
-  return local.toISOString().slice(0, 16)
+  const parts = getGuatemalaParts()
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
 }
 
 /** Trunca un texto largo con ellipsis. */
 export function truncate(text: string | null | undefined, max = 40): string {
-  if (!text) return '—'
-  return text.length > max ? `${text.slice(0, max)}…` : text
+  if (!text) return '\u2014'
+  return text.length > max ? `${text.slice(0, max)}\u2026` : text
 }
 
 /** Formatea un porcentaje (0-100). */

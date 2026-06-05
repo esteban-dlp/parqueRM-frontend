@@ -1,17 +1,76 @@
-import { toNum } from './formatters'
 import { getServerBaseUrl } from '@/api/client'
-import type { Receipt } from '@/types/receipts'
 import type { ParkConfig } from '@/types/parkConfig'
+import type { Receipt } from '@/types/receipts'
+import { formatDate, formatDateTime, toNum } from './formatters'
 
 type JsPDF = import('jspdf').jsPDF
+type ReportTab = 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts'
+type Row = Record<string, unknown>
+type DetailField = [string, unknown]
+
+interface ReportPdfOpts {
+  tab: ReportTab
+  from: string
+  to: string
+  general?: Row
+  visitors?: Row[]
+  vehicles?: Row[]
+  lodging?: Row[]
+  income?: Row[]
+  receipts?: Row[]
+  parkConfig?: ParkConfig | null
+}
 
 function fmtQ(amount: unknown): string {
   return `Q ${toNum(amount).toFixed(2)}`
 }
 
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+function empty(value: unknown): string {
+  if (value == null || value === '') return '-'
+  return String(value)
+}
+
+function yesNo(value: unknown): string {
+  return value ? 'Si' : 'No'
+}
+
+function relName(value: unknown): string {
+  return empty((value as { name?: unknown } | null | undefined)?.name)
+}
+
+function relNameOr(value: unknown, fallback: unknown): string {
+  const name = (value as { name?: unknown } | null | undefined)?.name
+  return name == null || name === '' ? empty(fallback) : String(name)
+}
+
+function userName(value: unknown): string {
+  const user = value as { fullName?: unknown; username?: unknown } | null | undefined
+  return empty(user?.fullName ?? user?.username)
+}
+
+function listNames(value: unknown): string {
+  const items = Array.isArray(value) ? value : []
+  const names = items
+    .map((item) => (item as { name?: unknown })?.name)
+    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+  return names.length ? names.join(', ') : '-'
+}
+
+function truncate(value: unknown, max = 110): string {
+  const text = empty(value)
+  return text.length > max ? `${text.slice(0, max - 1)}...` : text
+}
+
+function dateValue(value: unknown): string {
+  return typeof value === 'string' ? formatDate(value) : value instanceof Date ? formatDate(value.toISOString()) : empty(value)
+}
+
+function dateTimeValue(value: unknown): string {
+  return typeof value === 'string'
+    ? formatDateTime(value)
+    : value instanceof Date
+      ? formatDateTime(value.toISOString())
+      : empty(value)
 }
 
 function getImageDimensions(dataUrl: string): Promise<{ w: number; h: number }> {
@@ -24,26 +83,22 @@ function getImageDimensions(dataUrl: string): Promise<{ w: number; h: number }> 
 }
 
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
-  console.log('[PDF] Loading logo from:', url)
-  // Primary: fetch → FileReader (works when server returns CORS headers)
   try {
     const res = await fetch(url, { mode: 'cors' })
-    if (!res.ok) {
-      console.error(`[PDF] Logo fetch failed: HTTP ${res.status} for ${url}`)
-    } else {
+    if (res.ok) {
       const blob = await res.blob()
       const dataUrl = await new Promise<string | null>((resolve) => {
         const reader = new FileReader()
         reader.onload = () => resolve(reader.result as string)
-        reader.onerror = (e) => { console.error('[PDF] FileReader error:', e); resolve(null) }
+        reader.onerror = () => resolve(null)
         reader.readAsDataURL(blob)
       })
-      if (dataUrl) { console.log('[PDF] Logo loaded via fetch, mime:', blob.type); return dataUrl }
+      if (dataUrl) return dataUrl
     }
-  } catch (err) {
-    console.error('[PDF] Fetch error (likely CORS), trying canvas fallback:', err)
+  } catch {
+    // Try canvas fallback below.
   }
-  // Fallback: Image + canvas (requires server to send CORS headers or same origin)
+
   return new Promise((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -53,107 +108,95 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
         canvas.width = img.naturalWidth || 200
         canvas.height = img.naturalHeight || 80
         const ctx = canvas.getContext('2d')
-        if (!ctx) { resolve(null); return }
+        if (!ctx) {
+          resolve(null)
+          return
+        }
         ctx.drawImage(img, 0, 0)
-        const dataUrl = canvas.toDataURL()
-        console.log('[PDF] Logo loaded via canvas fallback')
-        resolve(dataUrl)
-      } catch (e) {
-        console.error('[PDF] Canvas tainted — server missing CORS headers:', e)
+        resolve(canvas.toDataURL())
+      } catch {
         resolve(null)
       }
     }
-    img.onerror = (e) => { console.error('[PDF] Image element load error:', e); resolve(null) }
+    img.onerror = () => resolve(null)
     img.src = url
   })
 }
 
 async function drawHeader(doc: JsPDF, title: string, parkConfig?: ParkConfig | null): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth()
-
   const parkName = parkConfig?.parkName ?? 'Parque Nacional'
   const parkSubtitle = parkConfig?.parkSubtitle ?? ''
   const phone = parkConfig?.phone ?? ''
   const address = parkConfig?.address ?? ''
   const email = parkConfig?.email ?? ''
+  let y = 10
 
-  let startY = 10
-
-  // Logo
-  console.log('[PDF] parkConfig.logoUrl =', parkConfig?.logoUrl ?? '(none)')
   if (parkConfig?.logoUrl) {
-    const logoAbsUrl = `${getServerBaseUrl()}${parkConfig.logoUrl}`
-    console.log('[PDF] Resolved logo URL =', logoAbsUrl)
-    const dataUrl = await loadImageAsDataUrl(logoAbsUrl)
+    const dataUrl = await loadImageAsDataUrl(`${getServerBaseUrl()}${parkConfig.logoUrl}`)
     if (dataUrl) {
-      console.log('[PDF] Logo inserted into PDF')
       const imgFmt = dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')
         ? 'JPEG'
         : dataUrl.startsWith('data:image/webp')
           ? 'WEBP'
           : 'PNG'
       const dims = await getImageDimensions(dataUrl)
-      const maxW = 50
-      const maxH = 20
-      const scale = Math.min(maxW / dims.w, maxH / dims.h)
+      const scale = Math.min(50 / dims.w, 20 / dims.h)
       const logoW = parseFloat((dims.w * scale).toFixed(2))
       const logoH = parseFloat((dims.h * scale).toFixed(2))
-      doc.addImage(dataUrl, imgFmt, (pageW - logoW) / 2, startY, logoW, logoH)
-      startY += logoH + 3
-    } else {
-      console.warn('[PDF] Logo not inserted — loadImageAsDataUrl returned null')
+      doc.addImage(dataUrl, imgFmt, (pageW - logoW) / 2, y, logoW, logoH)
+      y += logoH + 3
     }
   }
 
-  doc.setFontSize(14)
+  doc.setTextColor(0)
   doc.setFont('helvetica', 'bold')
-  doc.text(parkName, pageW / 2, startY + 5, { align: 'center' })
-  startY += 9
+  doc.setFontSize(14)
+  doc.text(parkName, pageW / 2, y + 5, { align: 'center' })
+  y += 9
 
   if (parkSubtitle) {
+    doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
-    doc.setFont('helvetica', 'normal')
-    doc.text(parkSubtitle, pageW / 2, startY, { align: 'center' })
-    startY += 4
+    doc.text(parkSubtitle, pageW / 2, y, { align: 'center' })
+    y += 4
   }
 
-  const contactParts: string[] = []
-  if (address) contactParts.push(address)
-  if (phone) contactParts.push(`Tel: ${phone}`)
-  if (email) contactParts.push(email)
-  if (contactParts.length > 0) {
+  const contactParts = [address, phone ? `Tel: ${phone}` : '', email].filter(Boolean)
+  if (contactParts.length) {
+    doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
-    doc.setFont('helvetica', 'normal')
     doc.setTextColor(100)
-    doc.text(contactParts.join('  |  '), pageW / 2, startY, { align: 'center' })
+    doc.text(contactParts.join('  |  '), pageW / 2, y, { align: 'center' })
     doc.setTextColor(0)
-    startY += 4
+    y += 4
   }
 
-  doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
-  doc.text(title, pageW / 2, startY + 2, { align: 'center' })
-
-  const lineY = startY + 6
+  doc.setFontSize(11)
+  doc.text(title, pageW / 2, y + 2, { align: 'center' })
+  const lineY = y + 6
   doc.setDrawColor(180, 180, 180)
   doc.line(14, lineY, pageW - 14, lineY)
-
   return lineY + 6
 }
 
 function drawFooter(doc: JsPDF) {
   const pageH = doc.internal.pageSize.getHeight()
   const pageW = doc.internal.pageSize.getWidth()
-  doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
   doc.setTextColor(150)
-  doc.text(
-    `Generado el ${new Date().toLocaleString('es-GT')} — ParqueRM`,
-    pageW / 2,
-    pageH - 8,
-    { align: 'center' },
-  )
+  doc.text(`Generado el ${formatDateTime(new Date().toISOString())} - ParqueRM`, pageW / 2, pageH - 8, { align: 'center' })
   doc.setTextColor(0)
+}
+
+function ensurePage(doc: JsPDF, y: number, needed = 14): number {
+  const pageH = doc.internal.pageSize.getHeight()
+  if (y + needed < pageH - 14) return y
+  drawFooter(doc)
+  doc.addPage()
+  return 18
 }
 
 function row(doc: JsPDF, label: string, value: string, y: number, labelX = 14, valueX = 80): number {
@@ -165,67 +208,56 @@ function row(doc: JsPDF, label: string, value: string, y: number, labelX = 14, v
   return y + 6
 }
 
-// ─── RECEIPT PDF ────────────────────────────────────────────────────────────
+function drawReceiptLines(doc: JsPDF, receipt: Receipt, y: number): number {
+  const pageW = doc.internal.pageSize.getWidth()
+  y = ensurePage(doc, y, 18)
+  doc.setFillColor(245, 245, 245)
+  doc.rect(14, y - 4, pageW - 28, 7, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.text('Descripcion', 16, y)
+  doc.text('Cant.', 125, y, { align: 'right' })
+  doc.text('Precio unit.', 155, y, { align: 'right' })
+  doc.text('Total', pageW - 14, y, { align: 'right' })
+  y += 9
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  for (const line of receipt.lines) {
+    y = ensurePage(doc, y, 10)
+    const qty = toNum(line.quantity)
+    const unitPrice = qty > 0 ? toNum(line.total) / qty : toNum(line.unitPrice)
+    const descLines = doc.splitTextToSize(line.description ?? '-', 100)
+    doc.text(descLines, 16, y)
+    doc.text(String(qty), 125, y, { align: 'right' })
+    doc.text(fmtQ(unitPrice), 155, y, { align: 'right' })
+    doc.text(fmtQ(line.total), pageW - 14, y, { align: 'right' })
+    y += Math.max(6, descLines.length * 4)
+  }
+  return y
+}
 
 export async function downloadReceiptPdf(receipt: Receipt, parkConfig?: ParkConfig | null): Promise<void> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
-
   let y = await drawHeader(doc, 'TICKET DE PAGO', parkConfig)
 
-  // Metadata block
   y = row(doc, 'No. ticket:', receipt.receiptNumber, y)
-  if (parkConfig?.ticketVersion) {
-    y = row(doc, 'Versión ticket:', parkConfig.ticketVersion, y)
-  }
-  if (parkConfig?.ruv) {
-    y = row(doc, 'RUV:', parkConfig.ruv, y)
-  }
-  y = row(doc, 'Fecha:', fmtDate(receipt.receiptDate ?? receipt.createdAt), y)
+  if (parkConfig?.ticketVersion) y = row(doc, 'Version ticket:', parkConfig.ticketVersion, y)
+  if (parkConfig?.ruv) y = row(doc, 'RUV:', parkConfig.ruv, y)
+  y = row(doc, 'Fecha y hora:', dateTimeValue(receipt.receiptDate ?? receipt.createdAt), y)
   y = row(doc, 'Contribuyente:', receipt.contributorName ?? 'Consumidor final', y)
-  if (receipt.contributorDocument) {
-    y = row(doc, 'Documento:', receipt.contributorDocument, y)
-  }
-  if (receipt.paymentMethod?.name) {
-    y = row(doc, 'Método de pago:', receipt.paymentMethod.name, y)
-  }
+  if (receipt.contributorDocument) y = row(doc, 'Documento:', receipt.contributorDocument, y)
+  if (receipt.paymentMethod?.name) y = row(doc, 'Metodo de pago:', receipt.paymentMethod.name, y)
   y += 4
 
-  // Lines table header
-  doc.setFillColor(245, 245, 245)
-  doc.rect(14, y - 4, pageW - 28, 7, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text('Descripción', 16, y)
-  doc.text('Cant.', 125, y, { align: 'right' })
-  doc.text('Precio unit.', 155, y, { align: 'right' })
-  doc.text('Total', pageW - 14, y, { align: 'right' })
-  y += 5
-
-  doc.setDrawColor(200, 200, 200)
-  doc.line(14, y, pageW - 14, y)
-  y += 4
-
-  // Lines
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  for (const line of receipt.lines) {
-    const desc = line.description ?? '—'
-    const qty = toNum(line.quantity)
-    const unitPrice = qty > 0 ? toNum(line.total) / qty : toNum(line.unitPrice)
-    doc.text(desc, 16, y)
-    doc.text(String(qty), 125, y, { align: 'right' })
-    doc.text(fmtQ(unitPrice), 155, y, { align: 'right' })
-    doc.text(fmtQ(line.total), pageW - 14, y, { align: 'right' })
-    y += 6
-  }
-
+  y = drawReceiptLines(doc, receipt, y)
+  y = ensurePage(doc, y, 36)
   y += 2
   doc.line(14, y, pageW - 14, y)
   y += 6
 
-  // Subtotal / discount block
   if (receipt.discountAmount != null && toNum(receipt.discountAmount) > 0) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
@@ -234,25 +266,23 @@ export async function downloadReceiptPdf(receipt: Receipt, parkConfig?: ParkConf
       doc.text(fmtQ(receipt.subtotal), pageW - 14, y, { align: 'right' })
       y += 5
     }
-    const discLabel = receipt.discountType === 'PERCENTAGE' && receipt.discountPercentage
+    const discountLabel = receipt.discountType === 'PERCENTAGE' && receipt.discountPercentage
       ? `Descuento (${receipt.discountPercentage}%):`
       : receipt.discountType === 'AMOUNT'
         ? 'Descuento (Q fijo):'
         : 'Descuento:'
-    doc.text(discLabel, 14, y)
+    doc.text(discountLabel, 14, y)
     doc.text(`-${fmtQ(receipt.discountAmount)}`, pageW - 14, y, { align: 'right' })
+    y += 5
     if (receipt.discountReason) {
-      y += 4
       doc.setFontSize(8)
       doc.setTextColor(100)
-      doc.text(`Motivo: ${receipt.discountReason}`, 16, y)
+      doc.text(doc.splitTextToSize(`Motivo: ${receipt.discountReason}`, pageW - 30), 16, y)
       doc.setTextColor(0)
-      doc.setFontSize(9)
+      y += 5
     }
-    y += 5
   }
 
-  // Total block
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.text('TOTAL', 14, y)
@@ -272,305 +302,224 @@ export async function downloadReceiptPdf(receipt: Receipt, parkConfig?: ParkConf
     }
   }
 
-  y += 8
+  y = ensurePage(doc, y, 14)
   doc.setFont('helvetica', 'italic')
   doc.setFontSize(8)
   doc.setTextColor(120)
-  doc.text('Este ticket es válido como comprobante de pago.', pageW / 2, y, { align: 'center' })
+  doc.text('Este ticket es valido como comprobante de pago.', pageW / 2, y + 8, { align: 'center' })
   doc.setTextColor(0)
-
   drawFooter(doc)
 
-  const filename = `ticket-${receipt.receiptNumber.replace(/\//g, '-')}.pdf`
-  doc.save(filename)
+  doc.save(`ticket-${receipt.receiptNumber.replace(/\//g, '-')}.pdf`)
 }
 
-// ─── REPORT PDF ─────────────────────────────────────────────────────────────
+function drawSummaryRows(doc: JsPDF, rows: [string, string][], y: number): number {
+  const pageW = doc.internal.pageSize.getWidth()
+  for (const [label, value] of rows) {
+    y = ensurePage(doc, y, 7)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(label, 16, y)
+    doc.text(value, pageW - 14, y, { align: 'right' })
+    y += 5
+  }
+  return y
+}
 
-interface ReportPdfOpts {
-  tab: 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts'
-  from: string
-  to: string
-  general?: Record<string, unknown>
-  visitors?: Record<string, unknown>[]
-  vehicles?: Record<string, unknown>[]
-  lodging?: Record<string, unknown>[]
-  income?: Record<string, unknown>[]
-  receipts?: Record<string, unknown>[]
-  parkConfig?: ParkConfig | null
+function drawDetailBlock(doc: JsPDF, title: string, fields: DetailField[], y: number): number {
+  const pageW = doc.internal.pageSize.getWidth()
+  y = ensurePage(doc, y, 16)
+  doc.setFillColor(245, 245, 245)
+  doc.rect(14, y - 4, pageW - 28, 7, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.text(title, 16, y)
+  y += 8
+
+  for (const [label, rawValue] of fields) {
+    const value = truncate(rawValue)
+    const labelText = `${label}:`
+    const valueLines = doc.splitTextToSize(value, pageW - 74)
+    y = ensurePage(doc, y, Math.max(6, valueLines.length * 4))
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.text(labelText, 16, y)
+    doc.setFont('helvetica', 'normal')
+    doc.text(valueLines, 64, y)
+    y += Math.max(5, valueLines.length * 4)
+  }
+  return y + 4
+}
+
+function visitorFields(r: Row): DetailField[] {
+  return [
+    ['Fecha registro', dateValue(r.recordDate)],
+    ['Ingreso', dateTimeValue(r.checkInAt)],
+    ['Salida', dateTimeValue(r.checkOutAt)],
+    ['Categoria', relNameOr(r.visitorCategory, r.categoryName)],
+    ['Es extranjero', yesNo(r.isForeign)],
+    ['Tarifa aplicada', fmtQ(r.appliedRate)],
+    ['Cantidad', r.quantity],
+    ['Total', fmtQ(r.totalAmount)],
+    ['Pais', relName(r.country)],
+    ['Departamento', relName(r.department)],
+    ['Municipio', relName(r.municipality)],
+    ['Nacionalidad', r.nationality],
+    ['Tipo identificacion', r.identificationType],
+    ['Numero identificacion', r.identificationNumber],
+    ['Nombre completo', r.fullName],
+    ['Fuente informacion', relName(r.infoSource)],
+    ['Tipo viaje', relName(r.travelType)],
+    ['Genero', r.gender],
+    ['Rango edad', r.ageRange],
+    ['Tipo visita', r.visitType],
+    ['Motivos visita', listNames(r.visitReasons)],
+    ['Actividades', listNames(r.visitActivities)],
+    ['Observaciones', r.observations],
+  ]
+}
+
+function vehicleFields(r: Row): DetailField[] {
+  return [
+    ['Tipo vehiculo', relName(r.vehicleType)],
+    ['Placa', r.plateNumber],
+    ['Vehiculo extranjero', yesNo(r.isForeign)],
+    ['Tarifa aplicada', fmtQ(r.appliedRate)],
+    ['Total', fmtQ(r.totalAmount)],
+    ['Ingreso', dateTimeValue(r.checkInAt)],
+    ['Salida', dateTimeValue(r.checkOutAt)],
+    ['Salida habilitada', yesNo(r.exitEnabled)],
+    ['Tarifa', relName(r.tariff)],
+    ['Visitante relacionado', (r.visitorRecord as { ticketNumber?: unknown } | null | undefined)?.ticketNumber],
+    ['Observaciones', r.observations],
+  ]
+}
+
+function lodgingFields(r: Row): DetailField[] {
+  return [
+    ['Tipo hospedaje', relName(r.lodgingType)],
+    ['Fecha registro', dateValue(r.recordDate)],
+    ['Noches', r.nights],
+    ['Huespedes', r.guests],
+    ['Es extranjero', yesNo(r.isForeign)],
+    ['Tarifa aplicada', fmtQ(r.appliedRate)],
+    ['Total', fmtQ(r.totalAmount)],
+    ['Tarifa', relName(r.tariff)],
+    ['Observaciones', r.observations],
+  ]
+}
+
+function incomeFields(r: Row): DetailField[] {
+  return [
+    ['Concepto', relNameOr(r.concept, r.conceptName)],
+    ['Metodo de pago', relNameOr(r.paymentMethod, r.paymentMethodName)],
+    ['Origen', r.originType],
+    ['ID origen', r.originId],
+    ['Ticket relacionado', (r.receipt as { receiptNumber?: unknown } | null | undefined)?.receiptNumber ?? r.receiptId],
+    ['Monto', fmtQ(r.amount ?? r.total)],
+    ['Estado', r.status],
+    ['Fecha movimiento', dateTimeValue(r.movementDate)],
+    ['Creado', dateTimeValue(r.createdAt)],
+    ['Creado por', userName(r.createdByUser)],
+    ['Descripcion', r.description],
+  ]
+}
+
+function receiptFields(r: Row): DetailField[] {
+  return [
+    ['Contribuyente', r.contributorName],
+    ['Documento', r.contributorDocument],
+    ['Direccion', r.contributorAddress],
+    ['Origen', r.originType],
+    ['ID origen', r.originId],
+    ['Metodo de pago', relName(r.paymentMethod)],
+    ['Subtotal', r.subtotal == null ? '-' : fmtQ(r.subtotal)],
+    ['Tipo descuento', r.discountType],
+    ['Descuento porcentaje', r.discountPercentage],
+    ['Descuento monto', fmtQ(r.discountAmount)],
+    ['Motivo descuento', r.discountReason],
+    ['Total', fmtQ(r.total)],
+    ['Recibido', r.amountReceived == null ? '-' : fmtQ(r.amountReceived)],
+    ['Cambio', r.changeAmount == null ? '-' : fmtQ(r.changeAmount)],
+    ['Referencia pago', r.paymentReference],
+    ['Estado', r.status],
+    ['Emitido', dateTimeValue(r.receiptDate ?? r.createdAt)],
+    ['Emitido por', userName(r.createdByUser)],
+    ['Anulado', dateTimeValue(r.cancelledAt)],
+    ['Motivo anulacion', r.cancelReason],
+  ]
+}
+
+function drawRowsAsDetails(doc: JsPDF, rows: Row[], getTitle: (row: Row, index: number) => string, getFields: (row: Row) => DetailField[], y: number): number {
+  for (let i = 0; i < rows.length; i += 1) {
+    y = drawDetailBlock(doc, getTitle(rows[i], i), getFields(rows[i]), y)
+  }
+  return y
 }
 
 export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const pageW = doc.internal.pageSize.getWidth()
 
-  const tabLabels: Record<string, string> = {
+  const tabLabels: Record<ReportTab, string> = {
     general: 'Reporte General',
     visitors: 'Reporte de Visitantes',
-    vehicles: 'Reporte de Vehículos',
+    vehicles: 'Reporte de Vehiculos',
     lodging: 'Reporte de Hospedaje',
-    income: 'Reporte de Ingresos (Caja)',
+    income: 'Reporte de Ingresos',
     receipts: 'Reporte de Tickets',
   }
-  let y = await drawHeader(doc, tabLabels[opts.tab] ?? opts.tab, opts.parkConfig)
+  let y = await drawHeader(doc, tabLabels[opts.tab], opts.parkConfig)
 
-  // Date range
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(100)
-  doc.text(`Período: ${opts.from} al ${opts.to}`, 14, y)
+  doc.text(`Periodo: ${opts.from} al ${opts.to}`, 14, y)
   doc.setTextColor(0)
   y += 8
 
   if (opts.tab === 'general' && opts.general) {
-    const g = opts.general as {
-      totalVisitors: number; totalVehicles: number; totalLodging: number
-      totalIncome: number; totalExpense: number; net: number
-    }
-
-    // Registros
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text('Registros del período', 14, y)
-    y += 6
-
-    const regRows = [
-      ['Visitantes', String(g.totalVisitors)],
-      ['Vehículos', String(g.totalVehicles)],
-      ['Hospedaje', String(g.totalLodging)],
-    ]
-    for (const [label, val] of regRows) {
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.text(label, 16, y)
-      doc.text(val, pageW - 14, y, { align: 'right' })
-      y += 5
-    }
-
-    y += 4
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text('Resumen financiero', 14, y)
-    y += 6
-
-    const finRows: [string, string, string][] = [
-      ['Ingresos (Q)', fmtQ(g.totalIncome), '1B5E20'],
-      ['Egresos (Q)', fmtQ(g.totalExpense), 'B71C1C'],
-      ['Neto (Q)', fmtQ(g.net), '000000'],
-    ]
-    for (const [label, val, color] of finRows) {
-      doc.setFont(label === 'Neto (Q)' ? 'helvetica' : 'helvetica', label === 'Neto (Q)' ? 'bold' : 'normal')
-      doc.setFontSize(9)
-      doc.text(label, 16, y)
-      const c = parseInt(color, 16)
-      doc.setTextColor((c >> 16) & 255, (c >> 8) & 255, c & 255)
-      doc.text(val, pageW - 14, y, { align: 'right' })
-      doc.setTextColor(0)
-      y += 5
-    }
+    y = drawSummaryRows(doc, [
+      ['Visitantes', empty(opts.general.totalVisitors)],
+      ['Vehiculos', empty(opts.general.totalVehicles)],
+      ['Hospedaje', empty(opts.general.totalLodging)],
+      ['Ingresos', fmtQ(opts.general.totalIncome)],
+      ['Egresos', fmtQ(opts.general.totalExpense)],
+      ['Neto', fmtQ(opts.general.net)],
+    ], y)
   } else if (opts.tab === 'visitors' && opts.visitors?.length) {
-    // Table headers
-    const cols = [
-      { label: 'Ticket', x: 14, w: 30 },
-      { label: 'Nombre', x: 46, w: 55 },
-      { label: 'Categoría', x: 103, w: 35 },
-      { label: 'Cant.', x: 140, w: 15 },
-      { label: 'Total Q', x: 157, w: 20 },
-      { label: 'Ingreso', x: 179, w: 17 },
-    ]
-
-    doc.setFillColor(245, 245, 245)
-    doc.rect(14, y - 4, pageW - 28, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    for (const col of cols) doc.text(col.label, col.x, y)
-    y += 5
-    doc.setDrawColor(200)
-    doc.line(14, y, pageW - 14, y)
-    y += 3
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    for (const r of opts.visitors) {
-      if (y > 270) { doc.addPage(); y = 20 }
-      doc.text(String(r.ticketNumber ?? '—'), cols[0].x, y)
-      const name = String(r.fullName ?? '—')
-      doc.text(name.length > 22 ? name.slice(0, 22) + '…' : name, cols[1].x, y)
-      doc.text(String(r.categoryName ?? '—'), cols[2].x, y)
-      doc.text(String(r.quantity ?? '—'), cols[3].x, y)
-      doc.text(fmtQ(r.totalAmount), cols[4].x, y)
-      doc.text(fmtDate(r.checkInAt as string), cols[5].x, y)
-      y += 5
-    }
-  } else if (opts.tab === 'income' && opts.income?.length) {
-    const cols = [
-      { label: 'Concepto', x: 14 },
-      { label: 'Método de pago', x: 100 },
-      { label: 'Monto Q', x: pageW - 14 },
-    ]
-
-    doc.setFillColor(245, 245, 245)
-    doc.rect(14, y - 4, pageW - 28, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.text(cols[0].label, cols[0].x, y)
-    doc.text(cols[1].label, cols[1].x, y)
-    doc.text(cols[2].label, cols[2].x, y, { align: 'right' })
-    y += 5
-    doc.setDrawColor(200)
-    doc.line(14, y, pageW - 14, y)
-    y += 3
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    let totalIncome = 0
-    for (const r of opts.income) {
-      if (y > 270) { doc.addPage(); y = 20 }
-      const conceptName = (r.concept as { name?: string } | null)?.name ?? String(r.conceptName ?? '—')
-      const methodName = (r.paymentMethod as { name?: string } | null)?.name ?? String(r.paymentMethodName ?? '—')
-      const amount = toNum(r.amount ?? r.total ?? 0)
-      totalIncome += amount
-      doc.text(conceptName, cols[0].x, y)
-      doc.text(methodName, cols[1].x, y)
-      doc.text(fmtQ(amount), cols[2].x, y, { align: 'right' })
-      y += 5
-    }
-
-    y += 3
-    doc.line(14, y, pageW - 14, y)
-    y += 5
-    doc.setFont('helvetica', 'bold')
-    doc.text('TOTAL', cols[0].x, y)
-    doc.text(fmtQ(totalIncome), cols[2].x, y, { align: 'right' })
+    y = drawRowsAsDetails(doc, opts.visitors, (r, i) => `Visitante ${i + 1} - ${empty(r.ticketNumber)}`, visitorFields, y)
   } else if (opts.tab === 'vehicles' && opts.vehicles?.length) {
-    const cols = [
-      { label: 'Placa', x: 14 },
-      { label: 'Tipo', x: 55 },
-      { label: 'Tarifa Q', x: 130 },
-      { label: 'Total Q', x: pageW - 14 },
-    ]
-    doc.setFillColor(245, 245, 245)
-    doc.rect(14, y - 4, pageW - 28, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.text(cols[0].label, cols[0].x, y)
-    doc.text(cols[1].label, cols[1].x, y)
-    doc.text(cols[2].label, cols[2].x, y, { align: 'right' })
-    doc.text(cols[3].label, cols[3].x, y, { align: 'right' })
-    y += 5
-    doc.setDrawColor(200)
-    doc.line(14, y, pageW - 14, y)
-    y += 3
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    let totalVeh = 0
-    for (const r of opts.vehicles) {
-      if (y > 270) { doc.addPage(); y = 20 }
-      const typeName = (r.vehicleType as { name?: string } | null)?.name ?? '—'
-      const amount = toNum(r.totalAmount ?? 0)
-      totalVeh += amount
-      doc.text(String(r.plateNumber ?? '—'), cols[0].x, y)
-      doc.text(typeName.length > 20 ? typeName.slice(0, 20) + '…' : typeName, cols[1].x, y)
-      doc.text(fmtQ(r.appliedRate), cols[2].x, y, { align: 'right' })
-      doc.text(fmtQ(amount), cols[3].x, y, { align: 'right' })
-      y += 5
-    }
-    y += 3
-    doc.line(14, y, pageW - 14, y)
-    y += 5
-    doc.setFont('helvetica', 'bold')
-    doc.text('TOTAL', cols[0].x, y)
-    doc.text(fmtQ(totalVeh), cols[3].x, y, { align: 'right' })
+    y = drawRowsAsDetails(doc, opts.vehicles, (r, i) => `Vehiculo ${i + 1} - ${empty(r.plateNumber)}`, vehicleFields, y)
   } else if (opts.tab === 'lodging' && opts.lodging?.length) {
-    const cols = [
-      { label: 'Tipo', x: 14 },
-      { label: 'Fecha', x: 70 },
-      { label: 'Noches', x: 105 },
-      { label: 'Huésp.', x: 130 },
-      { label: 'Total Q', x: pageW - 14 },
-    ]
-    doc.setFillColor(245, 245, 245)
-    doc.rect(14, y - 4, pageW - 28, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    for (const col of cols) doc.text(col.label, col.x, y)
-    y += 5
-    doc.setDrawColor(200)
-    doc.line(14, y, pageW - 14, y)
-    y += 3
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    let totalLod = 0
-    for (const r of opts.lodging) {
-      if (y > 270) { doc.addPage(); y = 20 }
-      const typeName = (r.lodgingType as { name?: string } | null)?.name ?? '—'
-      const amount = toNum(r.totalAmount ?? 0)
-      totalLod += amount
-      doc.text(typeName.length > 22 ? typeName.slice(0, 22) + '…' : typeName, cols[0].x, y)
-      doc.text(String(r.recordDate ?? '—'), cols[1].x, y)
-      doc.text(String(r.nights ?? '—'), cols[2].x, y)
-      doc.text(String(r.guests ?? '—'), cols[3].x, y)
-      doc.text(fmtQ(amount), cols[4].x, y, { align: 'right' })
-      y += 5
-    }
-    y += 3
-    doc.line(14, y, pageW - 14, y)
-    y += 5
-    doc.setFont('helvetica', 'bold')
-    doc.text('TOTAL', cols[0].x, y)
-    doc.text(fmtQ(totalLod), cols[4].x, y, { align: 'right' })
+    y = drawRowsAsDetails(doc, opts.lodging, (r, i) => `Hospedaje ${i + 1} - ${relName(r.lodgingType)}`, lodgingFields, y)
+  } else if (opts.tab === 'income' && opts.income?.length) {
+    y = drawRowsAsDetails(doc, opts.income, (r, i) => `Ingreso ${i + 1} - ${fmtQ(r.amount ?? r.total)}`, incomeFields, y)
   } else if (opts.tab === 'receipts' && opts.receipts?.length) {
-    const cols = [
-      { label: 'No. ticket', x: 14 },
-      { label: 'Origen', x: 55 },
-      { label: 'Método', x: 100 },
-      { label: 'Estado', x: 145 },
-      { label: 'Total Q', x: pageW - 14 },
-    ]
-    doc.setFillColor(245, 245, 245)
-    doc.rect(14, y - 4, pageW - 28, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    for (const col of cols) doc.text(col.label, col.x, y)
-    y += 5
-    doc.setDrawColor(200)
-    doc.line(14, y, pageW - 14, y)
-    y += 3
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    let totalRec = 0
-    for (const r of opts.receipts) {
-      if (y > 270) { doc.addPage(); y = 20 }
-      const methodName = (r.paymentMethod as { name?: string } | null)?.name ?? '—'
-      const amount = toNum(r.total ?? 0)
-      if (r.status !== 'CANCELADO') totalRec += amount
-      doc.text(String(r.receiptNumber ?? '—'), cols[0].x, y)
-      doc.text(String(r.originType ?? '—'), cols[1].x, y)
-      doc.text(methodName.length > 18 ? methodName.slice(0, 18) + '…' : methodName, cols[2].x, y)
-      doc.text(String(r.status ?? '—'), cols[3].x, y)
-      doc.text(fmtQ(amount), cols[4].x, y, { align: 'right' })
-      y += 5
-    }
-    y += 3
-    doc.line(14, y, pageW - 14, y)
-    y += 5
-    doc.setFont('helvetica', 'bold')
-    doc.text('TOTAL ACTIVOS', cols[0].x, y)
-    doc.text(fmtQ(totalRec), cols[4].x, y, { align: 'right' })
+    y = drawRowsAsDetails(doc, opts.receipts, (r, i) => `Ticket ${i + 1} - ${empty(r.receiptNumber)}`, (r) => {
+      const fields = receiptFields(r)
+      const lines = (Array.isArray(r.lines) ? r.lines : []) as Row[]
+      fields.push(['Lineas', lines.length
+        ? lines.map((line) => `${empty(line.description)} x ${empty(line.quantity)} = ${fmtQ(line.total)}`).join('; ')
+        : '-'])
+      return fields
+    }, y)
   } else {
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(10)
     doc.setTextColor(120)
-    doc.text('Sin datos en el rango seleccionado.', pageW / 2, y + 10, { align: 'center' })
+    doc.text('Sin datos en el rango seleccionado.', doc.internal.pageSize.getWidth() / 2, y + 10, { align: 'center' })
     doc.setTextColor(0)
   }
 
   drawFooter(doc)
-
-  const tabFiles: Record<string, string> = {
-    general: 'resumen', visitors: 'visitantes', vehicles: 'vehiculos',
-    lodging: 'hospedaje', income: 'ingresos', receipts: 'transacciones',
+  const tabFiles: Record<ReportTab, string> = {
+    general: 'resumen',
+    visitors: 'visitantes',
+    vehicles: 'vehiculos',
+    lodging: 'hospedaje',
+    income: 'ingresos',
+    receipts: 'tickets',
   }
-  doc.save(`reporte-${tabFiles[opts.tab] ?? opts.tab}-${opts.from}.pdf`)
+  doc.save(`reporte-${tabFiles[opts.tab]}-${opts.from}.pdf`)
 }

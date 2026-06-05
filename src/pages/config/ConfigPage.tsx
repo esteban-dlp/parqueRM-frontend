@@ -55,11 +55,6 @@ export default function ConfigPage() {
     retry: false,
   })
 
-  const { data: services = [] } = useQuery({
-    queryKey: ['park-config/services'],
-    queryFn: parkConfigApi.listServices,
-  })
-
   const { register, handleSubmit, reset, setValue, formState: { isSubmitting, isDirty } } =
     useForm<UpdateParkConfigDto>()
 
@@ -79,11 +74,6 @@ export default function ConfigPage() {
       toast.success(config ? 'Configuración guardada correctamente' : 'Configuración creada correctamente')
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Error al guardar configuración')),
-  })
-
-  const toggleServiceMutation = useMutation({
-    mutationFn: (id: number) => parkConfigApi.toggleService(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['park-config/services'] }),
   })
 
   async function onLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -339,29 +329,6 @@ export default function ConfigPage() {
           )}
         </Card>
 
-        <Card>
-          <div className={styles.sectionTitle}>Servicios habilitados</div>
-          {services.length === 0 ? (
-            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
-              No hay servicios configurados.
-            </p>
-          ) : (
-            services.map((s) => (
-              <div key={s.id} className={styles.serviceRow}>
-                <span className={styles.serviceName}>{s.name}</span>
-                <button
-                  type="button"
-                  className={[styles.toggle, s.isEnabled ? styles.toggleOn : styles.toggleOff].join(' ')}
-                  onClick={() => canEdit && toggleServiceMutation.mutate(s.id)}
-                  disabled={!canEdit || toggleServiceMutation.isPending}
-                  aria-label={s.isEnabled ? 'Desactivar' : 'Activar'}
-                >
-                  <span className={styles.toggleThumb} />
-                </button>
-              </div>
-            ))
-          )}
-        </Card>
       </div>
     </div>
   )

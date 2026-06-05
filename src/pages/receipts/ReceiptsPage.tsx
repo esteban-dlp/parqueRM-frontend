@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { receiptsApi } from '@/api/receipts.api'
 import { catalogsApi } from '@/api/catalogs.api'
+import { parkConfigApi } from '@/api/parkConfig.api'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -19,6 +20,7 @@ import { useToast } from '@/hooks/useToast'
 import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDateTime } from '@/utils/formatters'
+import { downloadReceiptPdf } from '@/utils/pdf'
 import type { Receipt } from '@/types/receipts'
 import type { PaginatedMeta } from '@/types/api'
 
@@ -34,7 +36,7 @@ export default function ReceiptsPage() {
   const toast = useToast()
 
   const canCancel = usePermission(PERMISSIONS.RECEIPTS_CANCEL)
-  const canPrint = usePermission(PERMISSIONS.RECEIPTS_PRINT)
+  const canDownloadPdf = usePermission(PERMISSIONS.RECEIPTS_PRINT)
 
   const { data, isLoading } = useQuery({
     queryKey: ['receipts', page, filterFrom, filterTo, filterStatus, filterOriginType, filterPaymentMethodId],
@@ -54,6 +56,13 @@ export default function ReceiptsPage() {
     staleTime: 10 * 60 * 1000,
   })
 
+  const { data: parkConfig } = useQuery({
+    queryKey: ['park-config'],
+    queryFn: parkConfigApi.get,
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  })
+
   const cancelMutation = useMutation({
     mutationFn: ({ id, cancelReason }: { id: number; cancelReason: string }) =>
       receiptsApi.cancel(id, { cancelReason }),
@@ -64,10 +73,6 @@ export default function ReceiptsPage() {
       toast.success('Ticket anulado')
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Error al anular ticket')),
-  })
-
-  const printMutation = useMutation({
-    mutationFn: (id: number) => receiptsApi.triggerPrint(id),
   })
 
   const { register: registerCancel, handleSubmit: handleCancelSubmit, reset: resetCancel } = useForm<{ cancelReason: string }>()
@@ -114,8 +119,8 @@ export default function ReceiptsPage() {
       key: 'status',
       header: 'Estado',
       render: (r: Receipt) =>
-        r.status === 'CANCELADO' ? (
-          <Badge variant="red">Cancelado</Badge>
+        r.status === 'ANULADO' ? (
+          <Badge variant="red">Anulado</Badge>
         ) : (
           <Badge variant="green">Activo</Badge>
         ),
@@ -131,14 +136,13 @@ export default function ReceiptsPage() {
       width: '120px',
       render: (r: Receipt) => (
         <TableActions>
-          {canPrint && r.status === 'ACTIVO' && (
+          {canDownloadPdf && r.status === 'ACTIVO' && (
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => printMutation.mutate(r.id)}
-              disabled={printMutation.isPending}
+              onClick={() => downloadReceiptPdf(r, parkConfig)}
             >
-              Imprimir
+              PDF
             </Button>
           )}
           {canCancel && r.status === 'ACTIVO' && (
@@ -163,7 +167,7 @@ export default function ReceiptsPage() {
           <Select
             label="Estado"
             placeholder="Todos"
-            options={[{ value: 'ACTIVO', label: 'Activo' }, { value: 'CANCELADO', label: 'Cancelado' }]}
+            options={[{ value: 'ACTIVO', label: 'Activo' }, { value: 'ANULADO', label: 'Anulado' }]}
             value={filterStatus}
             onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }}
           />

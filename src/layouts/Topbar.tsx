@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom'
+import { GUATEMALA_TIME_ZONE } from '@/utils/formatters'
 import styles from './Topbar.module.css'
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -29,6 +30,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
 
   const parts = label.split(' / ')
   const currentDate = new Date().toLocaleDateString('es-GT', {
+    timeZone: GUATEMALA_TIME_ZONE,
     weekday: 'short',
     day: 'numeric',
     month: 'short',

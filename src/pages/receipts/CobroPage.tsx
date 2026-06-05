@@ -28,7 +28,7 @@ const lineSchema = z.object({
   description: z.string().min(1, 'Requerido'),
   quantity: z.coerce.number().min(1).default(1),
   unitPrice: z.coerce.number().min(0),
-  total: z.coerce.number().min(0),
+  total: z.coerce.number().min(0).optional().default(0),
 })
 
 const schema = z.object({
@@ -45,7 +45,10 @@ const schema = z.object({
   lines: z.array(lineSchema).min(1, 'Agrega al menos una línea'),
 }).superRefine((data, ctx) => {
   const dv = data.discountValue ?? 0
-  const subtotal = (data.lines ?? []).reduce((s, l) => s + (l.total ?? 0), 0)
+  const subtotal = (data.lines ?? []).reduce(
+    (s, l) => s + (toNum(l.quantity) || 1) * toNum(l.unitPrice),
+    0,
+  )
   if (dv > 0) {
     if (data.discountType === 'PERCENTAGE' && dv > 100) {
       ctx.addIssue({ code: 'custom', path: ['discountValue'], message: 'El porcentaje no puede superar 100' })
@@ -138,7 +141,10 @@ export default function CobroPage() {
   const watchDiscountType = watch('discountType') ?? 'PERCENTAGE'
   const watchDiscountValue = watch('discountValue') ?? 0
 
-  const subtotal = watchLines?.reduce((sum, l) => sum + (Number(l.total) || 0), 0) ?? 0
+  const lineTotals = watchLines?.map((line) =>
+    parseFloat(((toNum(line.quantity) || 1) * toNum(line.unitPrice)).toFixed(2)),
+  ) ?? []
+  const subtotal = lineTotals.reduce((sum, total) => sum + total, 0)
   const discountAmount = (() => {
     const dv = Number(watchDiscountValue)
     if (!dv || dv <= 0) return 0
@@ -154,7 +160,7 @@ export default function CobroPage() {
       const price = Number(line.unitPrice) || 0
       const computed = parseFloat((toNum(qty) * toNum(price)).toFixed(2))
       if (computed !== Number(line.total)) {
-        setValue(`lines.${i}.total`, computed)
+        setValue(`lines.${i}.total`, computed, { shouldValidate: false, shouldDirty: false })
       }
     })
   }, [watchLines, setValue])
@@ -264,7 +270,7 @@ export default function CobroPage() {
         description: l.description,
         quantity: toNum(l.quantity) || 1,
         unitPrice: toNum(l.unitPrice),
-        total: toNum(l.total),
+        total: parseFloat(((toNum(l.quantity) || 1) * toNum(l.unitPrice)).toFixed(2)),
       })),
     })
   }
@@ -343,9 +349,6 @@ export default function CobroPage() {
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <Button variant="secondary" onClick={() => downloadReceiptPdf(issuedReceipt, parkConfig)}>
               Descargar PDF
-            </Button>
-            <Button variant="secondary" onClick={() => receiptsApi.triggerPrint(issuedReceipt.id)}>
-              Imprimir ticket
             </Button>
             <Button variant="primary" onClick={handleNewReceipt}>
               Nuevo cobro
@@ -428,6 +431,7 @@ export default function CobroPage() {
                     type="number"
                     step="0.01"
                     readOnly
+                    value={(lineTotals[i] ?? 0).toFixed(2)}
                     style={{ background: 'var(--surface-raised)' }}
                     {...register(`lines.${i}.total`)}
                   />
@@ -532,7 +536,7 @@ export default function CobroPage() {
                   <span className={styles.summaryLineDesc}>
                     {line.description || `Línea ${i + 1}`}
                   </span>
-                  <span>{formatCurrency(Number(line.total))}</span>
+                  <span>{formatCurrency(lineTotals[i] ?? 0)}</span>
                 </div>
               ))}
             </div>

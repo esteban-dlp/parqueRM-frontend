@@ -182,8 +182,8 @@ export default function CashPage() {
       key: 'status',
       header: 'Estado',
       render: (r: FinancialMovement) =>
-        r.status === 'CANCELADO' ? (
-          <Badge variant="red">Cancelado</Badge>
+        r.status === 'ANULADO' ? (
+          <Badge variant="red">Anulado</Badge>
         ) : (
           <Badge variant="green">Activo</Badge>
         ),
