@@ -1,7 +1,8 @@
 /**
  * Runtime configuration loader.
  *
- * In production, the installer writes /config.json with the server IP.
+ * In production, the installer writes /config.json with a same-origin
+ * apiUrl ("/api"), so the app keeps working if the server's LAN IP changes.
  * In development, falls back to VITE_API_URL from .env.
  *
  * Must be called before any API client usage (called from main.tsx).

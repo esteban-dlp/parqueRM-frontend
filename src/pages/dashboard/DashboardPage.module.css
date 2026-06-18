@@ -1,3 +1,50 @@
+.localAccessPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+}
+
+.localAccessInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.localAccessLabel {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.localAccessUrl {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--primary);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.localAccessUrl:hover {
+  text-decoration: underline;
+}
+
+.localAccessIp {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
 .statsRow {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -10,6 +57,11 @@
 }
 
 @media (max-width: 480px) {
+  .localAccessPanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .statsRow { grid-template-columns: 1fr 1fr; gap: 10px; }
 }
 

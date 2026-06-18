@@ -1,13 +1,22 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { dashboardApi } from '@/api/dashboard.api'
+import { networkApi } from '@/api/network.api'
 import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { Loading } from '@/components/ui/Loading'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { useToast } from '@/hooks/useToast'
 import { formatCurrency, formatTime } from '@/utils/formatters'
 import type { LatestMovement } from '@/types/dashboard'
+import type { LocalAccessInfo } from '@/types/network'
 import styles from './DashboardPage.module.css'
 
 export default function DashboardPage() {
+  const toast = useToast()
+  const [localAccess, setLocalAccess] = useState<LocalAccessInfo | null>(null)
+  const [loadingAccess, setLoadingAccess] = useState(false)
+
   const { data: summary, isLoading: loadingSum } = useQuery({
     queryKey: ['dashboard/summary'],
     queryFn: dashboardApi.summary,
@@ -23,10 +32,78 @@ export default function DashboardPage() {
 
   const isLoading = loadingSum || loadingOcc || loadingMov
 
+  async function generateLocalAccessUrl() {
+    setLoadingAccess(true)
+    try {
+      const info = await networkApi.localAccess()
+      setLocalAccess(info)
+
+      if (info.loginUrl) {
+        await copyText(info.loginUrl)
+        toast.success('URL por IP generada y copiada')
+      } else {
+        toast.error('No se detectó una IP de red local')
+      }
+    } catch {
+      toast.error('No se pudo generar la URL por IP')
+    } finally {
+      setLoadingAccess(false)
+    }
+  }
+
+  async function copyNetworkUrl() {
+    if (!localAccess?.loginUrl) return
+    try {
+      await copyText(localAccess.loginUrl)
+      toast.success('URL copiada')
+    } catch {
+      toast.error('No se pudo copiar la URL')
+    }
+  }
+
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Resumen del día" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Resumen del día"
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            onClick={generateLocalAccessUrl}
+            disabled={loadingAccess}
+            title="Generar URL con IP para usuarios conectados a la red"
+          >
+            {loadingAccess ? 'Generando...' : 'Generar URL por IP'}
+          </Button>
+        }
+      />
 
+      {localAccess && (
+        <div className={styles.localAccessPanel}>
+          {localAccess.loginUrl ? (
+            <>
+              <div className={styles.localAccessInfo}>
+                <span className={styles.localAccessLabel}>URL para trabajadores en la red</span>
+                <a className={styles.localAccessUrl} href={localAccess.loginUrl} target="_blank" rel="noreferrer">
+                  {localAccess.loginUrl}
+                </a>
+                <span className={styles.localAccessIp}>IP del servidor: {localAccess.primaryIp}</span>
+              </div>
+              <Button type="button" size="sm" variant="primary" onClick={copyNetworkUrl}>
+                Copiar URL
+              </Button>
+            </>
+          ) : (
+            <div className={styles.localAccessInfo}>
+              <span className={styles.localAccessLabel}>No se detectó una IP LAN útil</span>
+              <span className={styles.localAccessIp}>
+                Revisá que la computadora esté conectada a la red local.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
       {isLoading ? (
         <Loading />
       ) : (
@@ -128,6 +205,27 @@ export default function DashboardPage() {
       )}
     </div>
   )
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // Some LAN HTTP contexts deny Clipboard API; fall back to a local textarea.
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!copied) throw new Error('copy_failed')
 }
 
 function StatCard({
