@@ -30,6 +30,8 @@ const TariffsPage = lazy(() => import('@/pages/config/TariffsPage'))
 const UsersPage = lazy(() => import('@/pages/config/UsersPage'))
 const RolesPage = lazy(() => import('@/pages/config/RolesPage'))
 const AuditPage = lazy(() => import('@/pages/audit/AuditPage'))
+const SurveyQuestionsPage = lazy(() => import('@/pages/surveys/SurveyQuestionsPage'))
+const SurveySubmitPage = lazy(() => import('@/pages/surveys/SurveySubmitPage'))
 
 function Lazy({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>
@@ -46,6 +48,14 @@ export const router = createBrowserRouter([
         element: (
           <Lazy>
             <LoginPage />
+          </Lazy>
+        ),
+      },
+      {
+        path: '/encuestas',
+        element: (
+          <Lazy>
+            <SurveySubmitPage />
           </Lazy>
         ),
       },
@@ -218,6 +228,16 @@ export const router = createBrowserRouter([
           <Lazy>
             <ProtectedRoute permission={PERMISSIONS.AUDIT_READ}>
               <AuditPage />
+            </ProtectedRoute>
+          </Lazy>
+        ),
+      },
+      {
+        path: '/encuestas/preguntas',
+        element: (
+          <Lazy>
+            <ProtectedRoute permission={PERMISSIONS.SURVEYS_CONFIG_READ}>
+              <SurveyQuestionsPage />
             </ProtectedRoute>
           </Lazy>
         ),

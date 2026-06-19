@@ -69,6 +69,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const canViewUsers = usePermission(PERMISSIONS.USERS_READ)
   const canViewRoles = usePermission(PERMISSIONS.ROLES_READ)
   const canViewAudit = usePermission(PERMISSIONS.AUDIT_READ)
+  const canViewSurveyConfig = usePermission(PERMISSIONS.SURVEYS_CONFIG_READ)
 
   const initials = user?.fullName
     ? user.fullName.split(' ').slice(0, 2).map((w) => w[0]).join('')
@@ -245,7 +246,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       )}
 
       {/* Sistema */}
-      {(canViewConfig || canViewCatalogs || canViewUsers || canViewRoles || canViewAudit) && (
+      {(canViewConfig || canViewCatalogs || canViewUsers || canViewRoles || canViewAudit || canViewSurveyConfig) && (
         <div className={styles.navSection}>
           <div className={styles.navLabel}>Sistema</div>
           {canViewConfig && (
@@ -263,6 +264,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           )}
           {canViewCatalogs && <NavSub to="/catalogos" label="Catálogos" onNavigate={onClose} />}
           {canViewCatalogs && <NavSub to="/tarifas" label="Tarifas" onNavigate={onClose} />}
+          {canViewSurveyConfig && <NavSub to="/encuestas/preguntas" label="Encuesta de satisfacción" onNavigate={onClose} />}
           {canViewUsers && <NavSub to="/usuarios" label="Usuarios" onNavigate={onClose} />}
           {canViewRoles && <NavSub to="/roles" label="Roles y permisos" onNavigate={onClose} />}
           {canViewAudit && <NavSub to="/auditoria" label="Auditoría" onNavigate={onClose} />}

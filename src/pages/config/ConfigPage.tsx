@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Loading } from '@/components/ui/Loading'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { LocalAccessPanel } from '@/components/shared/LocalAccessPanel'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
 import { getApiErrorMessage, buildLogoUrl } from '@/api/client'
@@ -295,7 +296,15 @@ export default function ConfigPage() {
             </div>
           </div>
 
-          <Input label="URL de la red local (LAN)" {...register('systemLanUrl')} />
+          <Input
+            label="URL de la red local (LAN)"
+            hint="Dominio fijo opcional (ej. http://parquerm.local). Para detectar la IP real del servidor en este momento, usa el botón de abajo."
+            {...register('systemLanUrl')}
+          />
+
+          <div style={{ margin: '4px 0 14px' }}>
+            <LocalAccessPanel triggerLabel="Detectar IP de acceso actual" />
+          </div>
 
           <div className={styles.formGrid2} style={{ marginTop: 10 }}>
             <Input

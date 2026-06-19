@@ -58,6 +58,11 @@ export const PERMISSIONS = {
 
   // Tarifas
   TARIFF_OVERRIDE: 'TARIFF_OVERRIDE',
+
+  // Encuestas
+  SURVEYS_CONFIG_READ: 'SURVEYS_CONFIG_READ',
+  SURVEYS_CONFIG_MANAGE: 'SURVEYS_CONFIG_MANAGE',
+  SURVEYS_REPORT_READ: 'SURVEYS_REPORT_READ',
 } as const
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

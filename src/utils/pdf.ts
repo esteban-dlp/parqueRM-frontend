@@ -1,10 +1,11 @@
 import { getServerBaseUrl } from '@/api/client'
 import type { ParkConfig } from '@/types/parkConfig'
 import type { Receipt } from '@/types/receipts'
+import type { CashByPaymentMethodReport, IncomeByOriginReport, SurveyReport } from '@/types/reports'
 import { formatDate, formatDateTime, toNum } from './formatters'
 
 type JsPDF = import('jspdf').jsPDF
-type ReportTab = 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts'
+type ReportTab = 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts' | 'cashByPaymentMethod' | 'incomeByOrigin' | 'surveys'
 type Row = Record<string, unknown>
 type DetailField = [string, unknown]
 
@@ -18,6 +19,9 @@ interface ReportPdfOpts {
   lodging?: Row[]
   income?: Row[]
   receipts?: Row[]
+  cashByPaymentMethod?: CashByPaymentMethodReport
+  incomeByOrigin?: IncomeByOriginReport
+  surveyReport?: SurveyReport
   parkConfig?: ParkConfig | null
 }
 
@@ -32,6 +36,27 @@ function empty(value: unknown): string {
 
 function yesNo(value: unknown): string {
   return value ? 'Si' : 'No'
+}
+
+const ORIGIN_TYPE_LABELS: Record<string, string> = {
+  VISITANTE: 'Visitantes',
+  VEHICULO: 'Vehiculos',
+  HOSPEDAJE: 'Hospedaje',
+  SERVICIO_GENERAL: 'Servicios generales',
+  MOVIMIENTO_MANUAL: 'Movimiento manual',
+}
+
+function originTypeLabel(value: unknown): string {
+  const key = String(value ?? '')
+  return ORIGIN_TYPE_LABELS[key] ?? key
+}
+
+const SURVEY_EMOJIS = ['😡', '😕', '😐', '🙂', '😄']
+
+function surveyDominantAnswerLabel(answerType: unknown, value: unknown): string {
+  const n = Number(value)
+  if (answerType === 'EMOJI') return SURVEY_EMOJIS[n - 1] ?? String(n)
+  return String(n)
 }
 
 function relName(value: unknown): string {
@@ -468,6 +493,9 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
     lodging: 'Reporte de Hospedaje',
     income: 'Reporte de Ingresos',
     receipts: 'Reporte de Tickets',
+    cashByPaymentMethod: 'Cierre Diario por Medio de Pago',
+    incomeByOrigin: 'Ingresos por Tipo de Origen',
+    surveys: 'Reporte de Encuestas',
   }
   let y = await drawHeader(doc, tabLabels[opts.tab], opts.parkConfig)
 
@@ -495,6 +523,41 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
     y = drawRowsAsDetails(doc, opts.lodging, (r, i) => `Hospedaje ${i + 1} - ${relName(r.lodgingType)}`, lodgingFields, y)
   } else if (opts.tab === 'income' && opts.income?.length) {
     y = drawRowsAsDetails(doc, opts.income, (r, i) => `Ingreso ${i + 1} - ${fmtQ(r.amount ?? r.total)}`, incomeFields, y)
+  } else if (opts.tab === 'cashByPaymentMethod' && opts.cashByPaymentMethod?.data.length) {
+    const { data, paymentMethods, grandTotal } = opts.cashByPaymentMethod
+    for (const r of data) {
+      const amounts = (r.amounts ?? {}) as Record<string, number>
+      const rows: [string, string][] = paymentMethods.map((m) => [m, fmtQ(amounts[m] ?? 0)])
+      rows.push(['Total del dia', fmtQ(r.total)])
+      y = drawDetailBlock(doc, dateValue(r.date), [], y)
+      y = drawSummaryRows(doc, rows, y)
+    }
+    y = ensurePage(doc, y, 8)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('TOTAL GENERAL', 14, y)
+    doc.text(fmtQ(grandTotal), doc.internal.pageSize.getWidth() - 14, y, { align: 'right' })
+  } else if (opts.tab === 'incomeByOrigin' && opts.incomeByOrigin?.data.length) {
+    const { data, grandTotal, grandCount } = opts.incomeByOrigin
+    y = drawSummaryRows(doc, data.map((r) => [`${originTypeLabel(r.originType)} (${empty(r.count)} operaciones)`, fmtQ(r.total)]), y)
+    y = ensurePage(doc, y, 8)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text(`TOTAL GENERAL (${grandCount} operaciones)`, 14, y)
+    doc.text(fmtQ(grandTotal), doc.internal.pageSize.getWidth() - 14, y, { align: 'right' })
+  } else if (opts.tab === 'surveys' && opts.surveyReport?.data.length) {
+    y = drawRowsAsDetails(
+      doc,
+      opts.surveyReport.data as unknown as Row[],
+      (r, i) => `Pregunta ${i + 1} - ${empty(r.question)}`,
+      (r) => [
+        ['Ocurrencias', empty(r.occurrences)],
+        ['Respuesta con mayor valor', surveyDominantAnswerLabel(r.answerType, r.dominantValue)],
+        ['Ocurrencias de esa respuesta', empty(r.dominantCount)],
+        ['Porcentaje', `${empty(r.percentage)}%`],
+      ],
+      y,
+    )
   } else if (opts.tab === 'receipts' && opts.receipts?.length) {
     y = drawRowsAsDetails(doc, opts.receipts, (r, i) => `Ticket ${i + 1} - ${empty(r.receiptNumber)}`, (r) => {
       const fields = receiptFields(r)
@@ -520,6 +583,9 @@ export async function downloadReportPdf(opts: ReportPdfOpts): Promise<void> {
     lodging: 'hospedaje',
     income: 'ingresos',
     receipts: 'tickets',
+    cashByPaymentMethod: 'cierre-medio-pago',
+    incomeByOrigin: 'ingresos-por-tipo',
+    surveys: 'encuestas',
   }
   doc.save(`reporte-${tabFiles[opts.tab]}-${opts.from}.pdf`)
 }

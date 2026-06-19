@@ -15,7 +15,14 @@ import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDate, formatDateTime, todayISO } from '@/utils/formatters'
-import type { ReportQueryParams, ReportVisitorRow, GeneralReport } from '@/types/reports'
+import type {
+  ReportQueryParams,
+  ReportVisitorRow,
+  GeneralReport,
+  CashByPaymentMethodReport,
+  IncomeByOriginReport,
+  SurveyReport,
+} from '@/types/reports'
 import styles from './ReportsPage.module.css'
 
 async function downloadXlsx(sheetData: Record<string, unknown>[], filename: string) {
@@ -40,7 +47,7 @@ async function downloadMultiSheetXlsx(sheets: SheetSpec[], filename: string) {
   XLSX.writeFile(wb, filename)
 }
 
-type TabKey = 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts'
+type TabKey = 'general' | 'visitors' | 'vehicles' | 'lodging' | 'income' | 'receipts' | 'cashByPaymentMethod' | 'incomeByOrigin' | 'surveys'
 type ReportListResult = { data: Record<string, unknown>[]; meta?: { totalPages?: number } }
 type ExcelExportResult =
   | { filename: string; rows: Record<string, unknown>[] }
@@ -53,7 +60,26 @@ const TAB_LABELS: Record<TabKey, string> = {
   lodging: 'Hospedaje',
   income: 'Ingresos (Caja)',
   receipts: 'Tickets',
+  cashByPaymentMethod: 'Cierre por medio de pago',
+  incomeByOrigin: 'Ingresos por tipo',
+  surveys: 'Encuestas',
 }
+
+const SURVEY_EMOJIS = ['😡', '😕', '😐', '🙂', '😄']
+
+function dominantAnswerLabel(answerType: string | null, value: number): string {
+  if (answerType === 'EMOJI') return SURVEY_EMOJIS[value - 1] ?? String(value)
+  return String(value)
+}
+
+const ORIGIN_TYPE_LABELS: Record<string, string> = {
+  VISITANTE: 'Visitantes',
+  VEHICULO: 'Vehículos',
+  HOSPEDAJE: 'Hospedaje',
+  SERVICIO_GENERAL: 'Servicios generales',
+  MOVIMIENTO_MANUAL: 'Movimiento manual',
+}
+const ORIGIN_TYPE_OPTIONS = Object.keys(ORIGIN_TYPE_LABELS)
 
 async function fetchAllReportRows(
   fetcher: (params?: ReportQueryParams) => Promise<ReportListResult>,
@@ -248,11 +274,58 @@ function receiptLineExportRows(rows: Record<string, unknown>[]): Record<string, 
   return lines
 }
 
+function cashByPaymentMethodExportRows(report: CashByPaymentMethodReport): Record<string, unknown>[] {
+  return report.data.map((row) => {
+    const out: Record<string, unknown> = { Fecha: formatDate(row.date) }
+    for (const method of report.paymentMethods) {
+      out[method] = row.amounts[method] ?? 0
+    }
+    out['Total Q'] = row.total
+    return out
+  })
+}
+
+function incomeByOriginExportRows(report: IncomeByOriginReport): Record<string, unknown>[] {
+  return report.data.map((row) => ({
+    'Tipo de ingreso': ORIGIN_TYPE_LABELS[row.originType] ?? row.originType,
+    'Cantidad de operaciones': row.count,
+    'Total Q': row.total,
+  }))
+}
+
+function surveyReportExportRows(report: SurveyReport): Record<string, unknown>[] {
+  return report.data.map((row) => ({
+    Pregunta: row.question,
+    Ocurrencias: row.occurrences,
+    'Respuesta con mayor valor': dominantAnswerLabel(row.answerType, row.dominantValue),
+    'Ocurrencias de esa respuesta': row.dominantCount,
+    'Porcentaje (%)': row.percentage,
+  }))
+}
+
 async function buildExcelExport(
   tab: TabKey,
   params: ReportQueryParams,
   general?: GeneralReport,
+  cashByPaymentMethod?: CashByPaymentMethodReport,
+  incomeByOrigin?: IncomeByOriginReport,
+  surveyReport?: SurveyReport,
 ): Promise<ExcelExportResult | null> {
+  if (tab === 'cashByPaymentMethod') {
+    if (!cashByPaymentMethod?.data.length) return null
+    return { filename: `cierre-medio-pago-${params.from}.xlsx`, rows: cashByPaymentMethodExportRows(cashByPaymentMethod) }
+  }
+
+  if (tab === 'incomeByOrigin') {
+    if (!incomeByOrigin?.data.length) return null
+    return { filename: `ingresos-por-tipo-${params.from}.xlsx`, rows: incomeByOriginExportRows(incomeByOrigin) }
+  }
+
+  if (tab === 'surveys') {
+    if (!surveyReport?.data.length) return null
+    return { filename: `encuestas-${params.from}.xlsx`, rows: surveyReportExportRows(surveyReport) }
+  }
+
   if (tab === 'visitors') {
     const rows = await fetchAllReportRows(reportsApi.visitors as unknown as (params?: ReportQueryParams) => Promise<ReportListResult>, params)
     if (!rows.length) return null
@@ -314,19 +387,40 @@ async function buildExcelExport(
 
 export default function ReportsPage() {
   const canExport = usePermission(PERMISSIONS.REPORTES_EXPORT)
+  const canViewSurveyReport = usePermission(PERMISSIONS.SURVEYS_REPORT_READ)
   const toast = useToast()
   const [tab, setTab] = useState<TabKey>('general')
 
   const today = todayISO()
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
+  const [originTypes, setOriginTypes] = useState<string[]>([])
 
   const params = { from, to }
+  const incomeByOriginParams = { ...params, originTypes: originTypes.length ? originTypes : undefined }
 
   const { data: general, isLoading: loadingGeneral } = useQuery({
     queryKey: ['reports/general', params],
     queryFn: () => reportsApi.general(params),
     enabled: tab === 'general',
+  })
+
+  const { data: cashByPaymentMethodData, isLoading: loadingCashByPaymentMethod } = useQuery({
+    queryKey: ['reports/cash-by-payment-method', params],
+    queryFn: () => reportsApi.cashByPaymentMethod(params),
+    enabled: tab === 'cashByPaymentMethod',
+  })
+
+  const { data: surveyReportData, isLoading: loadingSurveyReport } = useQuery({
+    queryKey: ['reports/surveys', params],
+    queryFn: () => reportsApi.surveys(params),
+    enabled: tab === 'surveys',
+  })
+
+  const { data: incomeByOriginData, isLoading: loadingIncomeByOrigin } = useQuery({
+    queryKey: ['reports/income-by-origin', incomeByOriginParams],
+    queryFn: () => reportsApi.incomeByOrigin(incomeByOriginParams),
+    enabled: tab === 'incomeByOrigin',
   })
 
   const { data: visitorsData, isLoading: loadingVisitors } = useQuery({
@@ -367,7 +461,7 @@ export default function ReportsPage() {
   })
 
   async function handleExportExcel() {
-    const exportResult = await buildExcelExport(tab, params, general)
+    const exportResult = await buildExcelExport(tab, params, general, cashByPaymentMethodData, incomeByOriginData, surveyReportData)
     if (!exportResult) { toast.error('No hay datos para exportar'); return }
     if ('sheets' in exportResult) {
       await downloadMultiSheetXlsx(exportResult.sheets, exportResult.filename)
@@ -565,6 +659,9 @@ export default function ReportsPage() {
       lodging: exportLodging,
       income: exportIncome,
       receipts: exportReceipts,
+      cashByPaymentMethod: cashByPaymentMethodData,
+      incomeByOrigin: incomeByOriginData,
+      surveyReport: surveyReportData,
       parkConfig,
     })
   }
@@ -712,7 +809,14 @@ export default function ReportsPage() {
     (tab === 'vehicles' && loadingVehicles) ||
     (tab === 'lodging' && loadingLodging) ||
     (tab === 'income' && loadingIncome) ||
-    (tab === 'receipts' && loadingReceipts)
+    (tab === 'receipts' && loadingReceipts) ||
+    (tab === 'cashByPaymentMethod' && loadingCashByPaymentMethod) ||
+    (tab === 'incomeByOrigin' && loadingIncomeByOrigin) ||
+    (tab === 'surveys' && loadingSurveyReport)
+
+  function toggleOriginType(type: string) {
+    setOriginTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
+  }
 
   const vehicleRows = (vehiclesData?.data ?? []) as Record<string, unknown>[]
   const lodgingRows = (lodgingData?.data ?? []) as Record<string, unknown>[]
@@ -739,9 +843,31 @@ export default function ReportsPage() {
         </div>
       </Card>
 
+      {tab === 'incomeByOrigin' && (
+        <Card style={{ marginBottom: 16 }}>
+          <div className={styles.filterRow}>
+            {ORIGIN_TYPE_OPTIONS.map((type) => (
+              <label key={type} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={originTypes.includes(type)}
+                  onChange={() => toggleOriginType(type)}
+                />
+                {ORIGIN_TYPE_LABELS[type]}
+              </label>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
+            Sin selección = todos los tipos.
+          </p>
+        </Card>
+      )}
+
       {/* Tabs */}
       <div className={styles.tabs}>
-        {(Object.keys(TAB_LABELS) as TabKey[]).map((t) => (
+        {(Object.keys(TAB_LABELS) as TabKey[])
+          .filter((t) => t !== 'surveys' || canViewSurveyReport)
+          .map((t) => (
           <button
             key={t}
             type="button"
@@ -821,6 +947,101 @@ export default function ReportsPage() {
                   columns={receiptsColumns}
                   data={receiptsRows}
                   keyExtractor={(r) => String(r.id)}
+                />
+              )}
+            </Card>
+          )}
+          {tab === 'cashByPaymentMethod' && (
+            <Card padding="flush">
+              {!cashByPaymentMethodData?.data.length ? (
+                <EmptyState icon="💰" title="Sin datos" description="No hay ingresos en el rango seleccionado." />
+              ) : (
+                <>
+                  <Table
+                    columns={[
+                      { key: 'date', header: 'Fecha', render: (r: Record<string, unknown>) => formatDate(String(r.date ?? '')) },
+                      ...cashByPaymentMethodData.paymentMethods.map((method) => ({
+                        key: method,
+                        header: method,
+                        render: (r: Record<string, unknown>) =>
+                          formatCurrency(Number(((r.amounts as Record<string, number>)?.[method]) ?? 0)),
+                      })),
+                      {
+                        key: 'total',
+                        header: 'Total',
+                        render: (r: Record<string, unknown>) => formatCurrency(Number(r.total ?? 0)),
+                      },
+                    ]}
+                    data={cashByPaymentMethodData.data as unknown as Record<string, unknown>[]}
+                    keyExtractor={(r) => String(r.date)}
+                  />
+                  <div className={[styles.reportRow, styles.reportRowTotal].join(' ')} style={{ padding: '12px 16px' }}>
+                    <span>Total general</span>
+                    <span>{formatCurrency(cashByPaymentMethodData.grandTotal)}</span>
+                  </div>
+                </>
+              )}
+            </Card>
+          )}
+          {tab === 'incomeByOrigin' && (
+            <Card padding="flush">
+              {!incomeByOriginData?.data.length ? (
+                <EmptyState icon="📈" title="Sin datos" description="No hay ingresos en el rango seleccionado." />
+              ) : (
+                <>
+                  <Table
+                    columns={[
+                      {
+                        key: 'originType',
+                        header: 'Tipo de ingreso',
+                        render: (r: Record<string, unknown>) => ORIGIN_TYPE_LABELS[String(r.originType)] ?? String(r.originType),
+                      },
+                      { key: 'count', header: 'Cantidad de operaciones', render: (r: Record<string, unknown>) => String(r.count ?? 0) },
+                      {
+                        key: 'total',
+                        header: 'Total',
+                        render: (r: Record<string, unknown>) => formatCurrency(Number(r.total ?? 0)),
+                      },
+                    ]}
+                    data={incomeByOriginData.data as unknown as Record<string, unknown>[]}
+                    keyExtractor={(r) => String(r.originType)}
+                  />
+                  <div className={[styles.reportRow, styles.reportRowTotal].join(' ')} style={{ padding: '12px 16px' }}>
+                    <span>Total general ({incomeByOriginData.grandCount} operaciones)</span>
+                    <span>{formatCurrency(incomeByOriginData.grandTotal)}</span>
+                  </div>
+                </>
+              )}
+            </Card>
+          )}
+          {tab === 'surveys' && (
+            <Card padding="flush">
+              {!surveyReportData?.data.length ? (
+                <EmptyState icon="📝" title="Sin respuestas" description="No hay respuestas de encuesta en el rango seleccionado." />
+              ) : (
+                <Table
+                  columns={[
+                    { key: 'question', header: 'Pregunta' },
+                    { key: 'occurrences', header: 'Ocurrencias', render: (r: Record<string, unknown>) => String(r.occurrences ?? 0) },
+                    {
+                      key: 'dominantValue',
+                      header: 'Respuesta con mayor valor',
+                      render: (r: Record<string, unknown>) =>
+                        dominantAnswerLabel(r.answerType as string | null, Number(r.dominantValue)),
+                    },
+                    {
+                      key: 'dominantCount',
+                      header: 'Ocurrencias de esa respuesta',
+                      render: (r: Record<string, unknown>) => String(r.dominantCount ?? 0),
+                    },
+                    {
+                      key: 'percentage',
+                      header: 'Porcentaje',
+                      render: (r: Record<string, unknown>) => `${r.percentage ?? 0}%`,
+                    },
+                  ]}
+                  data={surveyReportData.data as unknown as Record<string, unknown>[]}
+                  keyExtractor={(r) => String(r.questionId)}
                 />
               )}
             </Card>

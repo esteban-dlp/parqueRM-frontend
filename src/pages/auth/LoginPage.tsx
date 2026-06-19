@@ -7,6 +7,7 @@ import { authApi } from '@/api/auth.api'
 import { getApiErrorMessage } from '@/api/client'
 import { useAuth } from '@/hooks/useAuth'
 import { Input } from '@/components/ui/Input'
+import { LocalAccessPanel } from '@/components/shared/LocalAccessPanel'
 import styles from './LoginPage.module.css'
 
 const schema = z.object({
@@ -76,6 +77,10 @@ export default function LoginPage() {
           {isSubmitting ? 'Iniciando sesión…' : 'Iniciar sesión'}
         </button>
       </form>
+
+      <div className={styles.localAccess}>
+        <LocalAccessPanel triggerLabel="Ver URL de acceso" />
+      </div>
     </div>
   )
 }

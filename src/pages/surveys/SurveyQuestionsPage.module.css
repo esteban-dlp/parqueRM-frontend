@@ -1,0 +1,48 @@
+.urlPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.urlInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.urlLabel {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.urlValue {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--primary);
+  font-size: var(--text-md);
+  font-weight: 700;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.urlValue:hover {
+  text-decoration: underline;
+}
+
+.urlActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .urlPanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -1,11 +1,33 @@
 import { apiClient, unwrap } from './client'
 import type { ApiResponse, PaginatedMeta } from '@/types/api'
-import type { ReportQueryParams, ReportVisitorRow, GeneralReport } from '@/types/reports'
+import type {
+  ReportQueryParams,
+  ReportVisitorRow,
+  GeneralReport,
+  CashByPaymentMethodReport,
+  IncomeByOriginReport,
+  SurveyReport,
+} from '@/types/reports'
 
 export const reportsApi = {
   general: (params?: ReportQueryParams) =>
     apiClient
       .get<ApiResponse<GeneralReport>>('/reports/general', { params })
+      .then(unwrap),
+
+  cashByPaymentMethod: (params?: ReportQueryParams) =>
+    apiClient
+      .get<ApiResponse<CashByPaymentMethodReport>>('/reports/cash-by-payment-method', { params })
+      .then(unwrap),
+
+  incomeByOrigin: (params?: ReportQueryParams) =>
+    apiClient
+      .get<ApiResponse<IncomeByOriginReport>>('/reports/income-by-origin', { params })
+      .then(unwrap),
+
+  surveys: (params?: ReportQueryParams) =>
+    apiClient
+      .get<ApiResponse<SurveyReport>>('/reports/surveys', { params })
       .then(unwrap),
 
   visitors: (params?: ReportQueryParams) =>
