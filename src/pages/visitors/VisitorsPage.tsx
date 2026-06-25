@@ -66,6 +66,13 @@ const schema = z.object({
   reasonIds: z.array(z.number()).optional(),
   activityIds: z.array(z.number()).optional(),
   companions: z.array(companionSchema).optional().default([]),
+  hasMedicationAllergy: z.boolean().default(false),
+  medicationAllergyDetail: z.string().optional(),
+  hasDiabetes: z.boolean().default(false),
+  hasHypertension: z.boolean().default(false),
+  hasRespiratoryDisease: z.boolean().default(false),
+  hasAnimalBiteAllergy: z.boolean().default(false),
+  animalBiteAllergyDetail: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -238,6 +245,13 @@ export default function VisitorsPage() {
         appliedRate: Number(c.appliedRate),
         totalAmount: Number(c.totalAmount),
       })),
+      hasMedicationAllergy: editRecord.hasMedicationAllergy ?? false,
+      medicationAllergyDetail: editRecord.medicationAllergyDetail ?? '',
+      hasDiabetes: editRecord.hasDiabetes ?? false,
+      hasHypertension: editRecord.hasHypertension ?? false,
+      hasRespiratoryDisease: editRecord.hasRespiratoryDisease ?? false,
+      hasAnimalBiteAllergy: editRecord.hasAnimalBiteAllergy ?? false,
+      animalBiteAllergyDetail: editRecord.animalBiteAllergyDetail ?? '',
     })
   }, [editRecord, reset])
 
@@ -331,6 +345,13 @@ export default function VisitorsPage() {
         appliedRate: Number(c.appliedRate),
         totalAmount: Number(c.totalAmount),
       })) : undefined,
+      hasMedicationAllergy: values.hasMedicationAllergy ?? false,
+      medicationAllergyDetail: values.hasMedicationAllergy ? (values.medicationAllergyDetail || undefined) : undefined,
+      hasDiabetes: values.hasDiabetes ?? false,
+      hasHypertension: values.hasHypertension ?? false,
+      hasRespiratoryDisease: values.hasRespiratoryDisease ?? false,
+      hasAnimalBiteAllergy: values.hasAnimalBiteAllergy ?? false,
+      animalBiteAllergyDetail: values.hasAnimalBiteAllergy ? (values.animalBiteAllergyDetail || undefined) : undefined,
     }
     if (editId) {
       await updateMutation.mutateAsync({ id: editId, dto })
@@ -826,6 +847,46 @@ export default function VisitorsPage() {
           placeholder="Notas adicionales..."
           {...register('observations')}
         />
+
+        <div className={styles.divider} />
+
+        {/* Salud del visitante */}
+        <div className={styles.sectionLabel}>Aspectos de salud del visitante</div>
+
+        <HealthQuestion
+          control={control}
+          setValue={setValue}
+          name="hasMedicationAllergy"
+          detailName="medicationAllergyDetail"
+          label="¿Es alérgico a algún medicamento?"
+          detailLabel="¿Cuál medicamento?"
+        />
+        <HealthQuestion
+          control={control}
+          setValue={setValue}
+          name="hasDiabetes"
+          label="¿Usted es diabético?"
+        />
+        <HealthQuestion
+          control={control}
+          setValue={setValue}
+          name="hasHypertension"
+          label="¿Padece de presión arterial alta (hipertensión)?"
+        />
+        <HealthQuestion
+          control={control}
+          setValue={setValue}
+          name="hasRespiratoryDisease"
+          label="¿Padece de asma u otra enfermedad respiratoria?"
+        />
+        <HealthQuestion
+          control={control}
+          setValue={setValue}
+          name="hasAnimalBiteAllergy"
+          detailName="animalBiteAllergyDetail"
+          label="¿Es alérgico a la picadura de algún animal?"
+          detailLabel="¿Cuál animal?"
+        />
       </Modal>
     </div>
   )
@@ -991,6 +1052,85 @@ function CompanionGrandTotal({ control, watchRate, watchQty }: CompanionGrandTot
       <span style={{ fontWeight: 600, fontSize: 'var(--text-md)' }}>
         Total: {formatCurrency(grandTotal)}
       </span>
+    </div>
+  )
+}
+
+// ─── HealthQuestion sub-component ────────────────────────────────────────────
+
+type BooleanHealthField =
+  | 'hasMedicationAllergy'
+  | 'hasDiabetes'
+  | 'hasHypertension'
+  | 'hasRespiratoryDisease'
+  | 'hasAnimalBiteAllergy'
+
+type DetailHealthField = 'medicationAllergyDetail' | 'animalBiteAllergyDetail'
+
+interface HealthQuestionProps {
+  control: Control<FormValues>
+  setValue: UseFormSetValue<FormValues>
+  name: BooleanHealthField
+  detailName?: DetailHealthField
+  label: string
+  detailLabel?: string
+}
+
+function HealthQuestion({ control, setValue, name, detailName, label, detailLabel }: HealthQuestionProps) {
+  const value = useWatch({ control, name }) ?? false
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 4 }}>
+        {label}
+      </div>
+      <Controller
+        control={control}
+        name={name}
+        defaultValue={false}
+        render={({ field }) => (
+          <div style={{ display: 'flex', gap: 20 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
+              <input
+                type="radio"
+                checked={field.value === true}
+                onChange={() => field.onChange(true)}
+                style={{ cursor: 'pointer' }}
+              />
+              Sí
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
+              <input
+                type="radio"
+                checked={field.value === false}
+                onChange={() => {
+                  field.onChange(false)
+                  if (detailName) setValue(detailName, '')
+                }}
+                style={{ cursor: 'pointer' }}
+              />
+              No
+            </label>
+          </div>
+        )}
+      />
+      {detailName && value === true && (
+        <div style={{ marginTop: 6 }}>
+          <Controller
+            control={control}
+            name={detailName}
+            defaultValue=""
+            render={({ field }) => (
+              <Input
+                label={detailLabel ?? '¿Cuál?'}
+                placeholder="Especifica..."
+                value={field.value ?? ''}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        </div>
+      )}
     </div>
   )
 }

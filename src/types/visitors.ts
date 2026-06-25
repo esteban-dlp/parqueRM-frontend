@@ -41,6 +41,13 @@ export interface VisitorRecord {
   visitType: string | null
   observations: string | null
   source: string | null
+  hasMedicationAllergy: boolean
+  medicationAllergyDetail: string | null
+  hasDiabetes: boolean
+  hasHypertension: boolean
+  hasRespiratoryDisease: boolean
+  hasAnimalBiteAllergy: boolean
+  animalBiteAllergyDetail: string | null
   reasons?: { id: number; name: string }[]
   activities?: { id: number; name: string }[]
   companions?: VisitorCompanionLine[]
@@ -72,6 +79,13 @@ export interface CreateVisitorDto {
   visitType?: string
   observations?: string
   source?: string
+  hasMedicationAllergy?: boolean
+  medicationAllergyDetail?: string
+  hasDiabetes?: boolean
+  hasHypertension?: boolean
+  hasRespiratoryDisease?: boolean
+  hasAnimalBiteAllergy?: boolean
+  animalBiteAllergyDetail?: string
   reasonIds?: number[]
   activityIds?: number[]
   companions?: {

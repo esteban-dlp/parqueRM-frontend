@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/useToast'
 import { getApiErrorMessage, buildLogoUrl } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import type { ParkConfig, UpdateParkConfigDto } from '@/types/parkConfig'
+import { DataResetModal } from './DataResetModal'
 import styles from './ConfigPage.module.css'
 
 const HEX_REGEX = /^#[0-9A-Fa-f]{6}$/
@@ -39,6 +40,8 @@ function buildFormDefaults(config: ParkConfig | null): UpdateParkConfigDto & { s
 
 export default function ConfigPage() {
   const canEdit = usePermission(PERMISSIONS.CONFIG_UPDATE)
+  const canReset = usePermission(PERMISSIONS.PLATFORM_DATA_RESET)
+  const [showResetModal, setShowResetModal] = useState(false)
   const qc = useQueryClient()
   const toast = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -339,6 +342,21 @@ export default function ConfigPage() {
         </Card>
 
       </div>
+
+      {canReset && (
+        <section className={styles.dangerZone}>
+          <div className={styles.dangerZoneTitle}>Zona de peligro</div>
+          <p className={styles.dangerZoneDesc}>
+            Esta acción elimina todos los datos operativos ingresados manualmente en la plataforma.
+            No se eliminan usuarios, roles, permisos, configuración del parque, catálogos ni tarifas.
+          </p>
+          <Button variant="danger" onClick={() => setShowResetModal(true)}>
+            Eliminar datos actuales de la plataforma
+          </Button>
+        </section>
+      )}
+
+      <DataResetModal isOpen={showResetModal} onClose={() => setShowResetModal(false)} />
     </div>
   )
 }

@@ -401,6 +401,14 @@ function visitorFields(r: Row): DetailField[] {
     ['Motivos visita', listNames(r.visitReasons)],
     ['Actividades', listNames(r.visitActivities)],
     ['Observaciones', r.observations],
+    ['--- Salud del visitante', ''],
+    ['Alergico a medicamento', yesNo(r.hasMedicationAllergy)],
+    ...(r.hasMedicationAllergy ? [['Medicamento', r.medicationAllergyDetail || 'No especificado'] as DetailField] : []),
+    ['Diabetico', yesNo(r.hasDiabetes)],
+    ['Hipertension arterial', yesNo(r.hasHypertension)],
+    ['Asma u enfermedad respiratoria', yesNo(r.hasRespiratoryDisease)],
+    ['Alergico a picadura de animal', yesNo(r.hasAnimalBiteAllergy)],
+    ...(r.hasAnimalBiteAllergy ? [['Animal', r.animalBiteAllergyDetail || 'No especificado'] as DetailField] : []),
   ]
 }
 
