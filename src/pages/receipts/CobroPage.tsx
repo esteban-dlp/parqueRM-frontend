@@ -24,7 +24,17 @@ import { useToast } from '@/hooks/useToast'
 import type { ReceiptOriginType, Receipt } from '@/types/receipts'
 import styles from './CobroPage.module.css'
 
+const ORIGIN_TYPES = ['VISITANTE', 'VEHICULO', 'HOSPEDAJE', 'SERVICIO_GENERAL', 'MOVIMIENTO_MANUAL'] as const
+
+const optionalId = z.preprocess(
+  (v) => (v === '' || v === '0' || v === 0 || v === null ? undefined : v),
+  z.coerce.number().positive().optional(),
+)
+
 const lineSchema = z.object({
+  conceptId: optionalId,
+  originType: z.enum(ORIGIN_TYPES).optional(),
+  originId: optionalId,
   description: z.string().min(1, 'Requerido'),
   quantity: z.coerce.number().min(1).default(1),
   unitPrice: z.coerce.number().min(0),
@@ -63,6 +73,13 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
+function normalizeConceptName(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 export default function CobroPage() {
   const { originType, originId } = useParams<{ originType?: string; originId?: string }>()
   const navigate = useNavigate()
@@ -90,6 +107,13 @@ export default function CobroPage() {
     queryFn: () => lodgingApi.getById(Number(originId)),
     enabled: originType === 'HOSPEDAJE' && !!originId,
     staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: relatedVehiclesPage, isFetched: relatedVehiclesFetched } = useQuery({
+    queryKey: ['vehicles/by-visitor', originId],
+    queryFn: () => vehiclesApi.list({ visitorRecordId: Number(originId), limit: 100 }),
+    enabled: originType === 'VISITANTE' && !!originId,
+    staleTime: 30 * 1000,
   })
 
   const { data: paymentMethods = [] } = useQuery({
@@ -153,6 +177,18 @@ export default function CobroPage() {
   })()
   const grandTotal = Math.max(0, subtotal - discountAmount)
   const change = Math.max(0, Number(watchAmountReceived) - grandTotal)
+  const relatedVehicles = relatedVehiclesPage?.data ?? []
+  const findConceptId = (keywords: string[]) => {
+    const normalizedKeywords = keywords.map(normalizeConceptName)
+    return concepts.find((concept) => {
+      const name = normalizeConceptName(concept.name)
+      return normalizedKeywords.some((keyword) => name.includes(keyword))
+    })?.id
+  }
+  const visitorConceptId = findConceptId(['ingreso por visitante', 'visitante'])
+  const vehicleConceptId = findConceptId(['ingreso por vehiculo', 'vehiculo'])
+  const lodgingConceptId = findConceptId(['ingreso por hospedaje', 'hospedaje'])
+  const defaultConceptId = findConceptId(['servicio general']) ?? concepts[0]?.id
 
   useEffect(() => {
     watchLines?.forEach((line, i) => {
@@ -168,6 +204,7 @@ export default function CobroPage() {
   useEffect(() => {
     if (hasPrefilled.current) return
     if (originType === 'VISITANTE' && originVisitor) {
+      if (!relatedVehiclesFetched) return
       hasPrefilled.current = true
       if (originVisitor.fullName) setValue('contributorName', originVisitor.fullName)
       if (originVisitor.identificationNumber) setValue('contributorDocument', originVisitor.identificationNumber)
@@ -176,6 +213,9 @@ export default function CobroPage() {
         (Number(originVisitor.appliedRate) * Number(originVisitor.quantity)).toFixed(2),
       )
       const primaryLine = {
+        conceptId: visitorConceptId,
+        originType: 'VISITANTE' as const,
+        originId: Number(originVisitor.id),
         description: `Ingreso de visitantes (${categoryName})`,
         quantity: Number(originVisitor.quantity),
         unitPrice: Number(originVisitor.appliedRate),
@@ -186,18 +226,39 @@ export default function CobroPage() {
       const companionLines = (originVisitor.companions ?? []).map((c) => {
         const name = c.visitorCategory?.name ?? `Cat#${c.visitorCategoryId}`
         return {
+          conceptId: visitorConceptId,
+          originType: 'VISITANTE' as const,
+          originId: Number(originVisitor.id),
           description: `Ingreso de visitantes (${name})`,
           quantity: Number(c.quantity),
           unitPrice: Number(c.appliedRate),
           total: parseFloat((Number(c.appliedRate) * Number(c.quantity)).toFixed(2)),
         }
       })
-      setValue('lines', [primaryLine, ...companionLines])
+      const vehicleLines = relatedVehicles
+        .filter((vehicle) => !vehicle.isPaid)
+        .map((vehicle) => {
+          const typeName = vehicle.vehicleType?.name ?? 'Vehiculo'
+          const plate = vehicle.plateNumber ? ` (${vehicle.plateNumber})` : ''
+          return {
+            conceptId: vehicleConceptId,
+            originType: 'VEHICULO' as const,
+            originId: Number(vehicle.id),
+            description: `Estacionamiento - ${typeName}${plate}`,
+            quantity: 1,
+            unitPrice: Number(vehicle.totalAmount),
+            total: Number(vehicle.totalAmount),
+          }
+        })
+      setValue('lines', [primaryLine, ...companionLines, ...vehicleLines])
     } else if (originType === 'VEHICULO' && originVehicle) {
       hasPrefilled.current = true
       const typeName = originVehicle.vehicleType?.name ?? 'Vehículo'
       const plate = originVehicle.plateNumber ? ` (${originVehicle.plateNumber})` : ''
       setValue('lines', [{
+        conceptId: vehicleConceptId,
+        originType: 'VEHICULO',
+        originId: Number(originVehicle.id),
         description: `Estacionamiento - ${typeName}${plate}`,
         quantity: 1,
         unitPrice: originVehicle.totalAmount,
@@ -208,13 +269,27 @@ export default function CobroPage() {
       const typeName = originLodging.lodgingType?.name ?? 'Alojamiento'
       const nights = originLodging.nights
       setValue('lines', [{
+        conceptId: lodgingConceptId,
+        originType: 'HOSPEDAJE',
+        originId: Number(originLodging.id),
         description: `Hospedaje - ${typeName} × ${nights} noche${nights !== 1 ? 's' : ''}`,
         quantity: nights,
         unitPrice: originLodging.appliedRate,
         total: originLodging.totalAmount,
       }])
     }
-  }, [originType, originVisitor, originVehicle, originLodging, setValue])
+  }, [
+    originType,
+    originVisitor,
+    originVehicle,
+    originLodging,
+    relatedVehicles,
+    relatedVehiclesFetched,
+    visitorConceptId,
+    vehicleConceptId,
+    lodgingConceptId,
+    setValue,
+  ])
 
   const createMutation = useMutation({
     mutationFn: receiptsApi.create,
@@ -229,6 +304,8 @@ export default function CobroPage() {
             key.startsWith('dashboard') ||
             key.startsWith('cash') ||
             key.startsWith('visitors') ||
+            key.startsWith('vehicles') ||
+            key.startsWith('lodging') ||
             key.startsWith('reports')
           )
         },
@@ -267,6 +344,9 @@ export default function CobroPage() {
       changeAmount: change > 0 ? toNum(change) : undefined,
       paymentReference: values.paymentReference || undefined,
       lines: values.lines.map((l) => ({
+        conceptId: l.conceptId ? Number(l.conceptId) : undefined,
+        originType: l.originType,
+        originId: l.originId ? Number(l.originId) : undefined,
         description: l.description,
         quantity: toNum(l.quantity) || 1,
         unitPrice: toNum(l.unitPrice),
@@ -279,7 +359,7 @@ export default function CobroPage() {
     setIssuedReceipt(null)
     reset({
       originType: 'SERVICIO_GENERAL',
-      lines: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }],
+      lines: [{ conceptId: defaultConceptId, description: '', quantity: 1, unitPrice: 0, total: 0 }],
     })
   }
 
@@ -400,6 +480,14 @@ export default function CobroPage() {
             <div className={styles.sectionLabel}>Detalle del cobro</div>
             {fields.map((field, i) => (
               <div key={field.id} className={styles.lineRow}>
+                <div className={styles.lineConcept}>
+                  <Select
+                    label={i === 0 ? 'Concepto' : undefined}
+                    placeholder="Concepto"
+                    options={concepts.map((c) => ({ value: c.id, label: c.name }))}
+                    {...register(`lines.${i}.conceptId`)}
+                  />
+                </div>
                 <div className={styles.lineDesc}>
                   <Input
                     label={i === 0 ? 'Descripción' : undefined}
@@ -451,7 +539,7 @@ export default function CobroPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => append({ description: '', quantity: 1, unitPrice: 0, total: 0 })}
+              onClick={() => append({ conceptId: defaultConceptId, description: '', quantity: 1, unitPrice: 0, total: 0 })}
               style={{ marginTop: 6 }}
             >
               + Agregar línea
@@ -585,9 +673,10 @@ export default function CobroPage() {
                     onClick={() => {
                       const last = fields[fields.length - 1]
                       if (last && !last.description) {
+                        setValue(`lines.${fields.length - 1}.conceptId`, c.id)
                         setValue(`lines.${fields.length - 1}.description`, c.name)
                       } else {
-                        append({ description: c.name, quantity: 1, unitPrice: 0, total: 0 })
+                        append({ conceptId: c.id, description: c.name, quantity: 1, unitPrice: 0, total: 0 })
                       }
                     }}
                   >
@@ -614,7 +703,7 @@ export default function CobroPage() {
               variant="primary"
               style={{ width: '100%', marginTop: 16 }}
               onClick={handleSubmit(onSubmit)}
-              disabled={isSubmitting || createMutation.isPending || grandTotal <= 0}
+              disabled={isSubmitting || createMutation.isPending || subtotal <= 0}
             >
               {isSubmitting || createMutation.isPending ? 'Emitiendo…' : `Emitir ticket — ${formatCurrency(grandTotal)}`}
             </Button>

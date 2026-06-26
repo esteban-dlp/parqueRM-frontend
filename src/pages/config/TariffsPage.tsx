@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
@@ -16,12 +16,14 @@ import { Table, TableActions } from '@/components/ui/Table'
 import { Loading } from '@/components/ui/Loading'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PaginationBar } from '@/components/shared/PaginationBar'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
 import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDate } from '@/utils/formatters'
+import type { PaginatedMeta } from '@/types/api'
 import type { Tariff } from '@/types/tariffs'
 import styles from './TariffsPage.module.css'
 
@@ -42,15 +44,20 @@ type FormValues = z.infer<typeof schema>
 export default function TariffsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editTariff, setEditTariff] = useState<Tariff | null>(null)
+  const [page, setPage] = useState(1)
   const [filterSearch, setFilterSearch] = useState('')
   const [searchKey, setSearchKey] = useState(0)
   const canManage = usePermission(PERMISSIONS.CATALOGS_MANAGE)
   const qc = useQueryClient()
   const toast = useToast()
 
+  useEffect(() => {
+    setPage(1)
+  }, [filterSearch])
+
   const { data: tariffsData, isLoading } = useQuery({
-    queryKey: ['tariffs', filterSearch],
-    queryFn: () => tariffsApi.list({ limit: 100, search: filterSearch || undefined }),
+    queryKey: ['tariffs', page, filterSearch],
+    queryFn: () => tariffsApi.list({ page, limit: 20, search: filterSearch || undefined }),
   })
 
   const { data: services = [] } = useQuery({
@@ -166,6 +173,7 @@ export default function TariffsPage() {
   }
 
   const tariffs = tariffsData?.data ?? []
+  const meta = tariffsData?.meta as PaginatedMeta | undefined
 
   const columns = [
     { key: 'name', header: 'Nombre' },
@@ -264,7 +272,12 @@ export default function TariffsPage() {
         ) : tariffs.length === 0 ? (
           <EmptyState icon="💲" title="Sin tarifas" description={filterSearch ? `Sin resultados para "${filterSearch}"` : 'Configura las tarifas del parque.'} />
         ) : (
-          <Table columns={columns} data={tariffs} keyExtractor={(r) => r.id} />
+          <>
+            <Table columns={columns} data={tariffs} keyExtractor={(r) => r.id} />
+            <div style={{ padding: '0 10px' }}>
+              <PaginationBar meta={meta} onPageChange={setPage} />
+            </div>
+          </>
         )}
       </Card>
 

@@ -11,6 +11,8 @@ export interface ReceiptLine {
   id?: number
   conceptId?: number
   concept?: { id: number; name: string }
+  originType?: string
+  originId?: number
   description?: string
   quantity: number
   unitPrice: number
@@ -48,6 +50,9 @@ export interface Receipt {
 }
 
 export interface CreateReceiptLineDto {
+  conceptId?: number
+  originType?: string
+  originId?: number
   description: string
   quantity?: number
   unitPrice: number

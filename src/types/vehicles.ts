@@ -15,6 +15,8 @@ export interface VehicleRecord {
   exitEnabled: boolean
   source: string
   observations: string | null
+  isPaid?: boolean
+  receiptId?: number | null
   createdByUserId: number
   createdAt: string
   updatedAt: string | null
@@ -45,5 +47,6 @@ export interface VehicleQueryParams extends PaginationParams {
   from?: string
   to?: string
   vehicleTypeId?: number
+  visitorRecordId?: number
   search?: string
 }

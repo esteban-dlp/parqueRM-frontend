@@ -39,13 +39,24 @@ export default function SurveyQuestionsPage() {
     queryFn: surveysApi.questions.list,
   })
 
-  const { data: localAccess } = useQuery({
+  const {
+    data: localAccess,
+    isLoading: isLoadingLocalAccess,
+    isError: isLocalAccessError,
+    error: localAccessError,
+  } = useQuery({
     queryKey: ['network', 'local-access'],
     queryFn: networkApi.localAccess,
     staleTime: 60_000,
   })
 
-  const surveyUrl = localAccess?.primaryIp ? `http://${localAccess.primaryIp}/encuestas` : null
+  const surveyBaseUrl = localAccess?.url ? localAccess.url.replace(/\/$/, '') : null
+  const surveyUrl = surveyBaseUrl ? `${surveyBaseUrl}/encuestas` : null
+  const surveyUrlMessage = isLoadingLocalAccess
+    ? 'Detectando IP de la red local...'
+    : isLocalAccessError
+      ? getApiErrorMessage(localAccessError, 'No se pudo detectar la IP de red local.')
+      : 'El backend respondio, pero no devolvio una URL de red local util.'
 
   const sorted = [...questions].sort((a, b) => a.displayOrder - b.displayOrder)
 
@@ -196,7 +207,7 @@ export default function SurveyQuestionsPage() {
                 {surveyUrl}
               </a>
             ) : (
-              <span className={styles.urlValue}>Detectando IP de la red local…</span>
+              <span className={styles.urlValue}>{surveyUrlMessage}</span>
             )}
           </div>
           <div className={styles.urlActions}>

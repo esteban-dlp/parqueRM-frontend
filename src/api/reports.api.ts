@@ -9,30 +9,40 @@ import type {
   SurveyReport,
 } from '@/types/reports'
 
+function serializeReportParams(params?: ReportQueryParams): ReportQueryParams | undefined {
+  if (!params) return undefined
+  const serialized: Record<string, unknown> = { ...params }
+  if (params.originTypes?.length) serialized.originTypes = params.originTypes.join(',')
+  else delete serialized.originTypes
+  if (params.conceptIds?.length) serialized.conceptIds = params.conceptIds.join(',')
+  else delete serialized.conceptIds
+  return serialized as ReportQueryParams
+}
+
 export const reportsApi = {
   general: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<GeneralReport>>('/reports/general', { params })
+      .get<ApiResponse<GeneralReport>>('/reports/general', { params: serializeReportParams(params) })
       .then(unwrap),
 
   cashByPaymentMethod: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<CashByPaymentMethodReport>>('/reports/cash-by-payment-method', { params })
+      .get<ApiResponse<CashByPaymentMethodReport>>('/reports/cash-by-payment-method', { params: serializeReportParams(params) })
       .then(unwrap),
 
   incomeByOrigin: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<IncomeByOriginReport>>('/reports/income-by-origin', { params })
+      .get<ApiResponse<IncomeByOriginReport>>('/reports/income-by-origin', { params: serializeReportParams(params) })
       .then(unwrap),
 
   surveys: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<SurveyReport>>('/reports/surveys', { params })
+      .get<ApiResponse<SurveyReport>>('/reports/surveys', { params: serializeReportParams(params) })
       .then(unwrap),
 
   visitors: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<ReportVisitorRow[]>>('/reports/visitors', { params })
+      .get<ApiResponse<ReportVisitorRow[]>>('/reports/visitors', { params: serializeReportParams(params) })
       .then((r) => ({ data: r.data.data ?? [], meta: r.data.meta as unknown as PaginatedMeta })),
 
   visitorsByCategory: (params?: ReportQueryParams) =>
@@ -52,32 +62,32 @@ export const reportsApi = {
 
   vehicles: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<Record<string, unknown>[]>>('/reports/vehicles', { params })
+      .get<ApiResponse<Record<string, unknown>[]>>('/reports/vehicles', { params: serializeReportParams(params) })
       .then((r) => ({ data: r.data.data ?? [], meta: r.data.meta as unknown as PaginatedMeta })),
 
   lodging: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<Record<string, unknown>[]>>('/reports/lodging', { params })
+      .get<ApiResponse<Record<string, unknown>[]>>('/reports/lodging', { params: serializeReportParams(params) })
       .then((r) => ({ data: r.data.data ?? [], meta: r.data.meta as unknown as PaginatedMeta })),
 
   income: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<Record<string, unknown>[]>>('/reports/income', { params })
+      .get<ApiResponse<Record<string, unknown>[]>>('/reports/income', { params: serializeReportParams(params) })
       .then((r) => ({ data: r.data.data ?? [], meta: r.data.meta as unknown as PaginatedMeta })),
 
   expenses: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<Record<string, unknown>[]>>('/reports/expenses', { params })
+      .get<ApiResponse<Record<string, unknown>[]>>('/reports/expenses', { params: serializeReportParams(params) })
       .then((r) => ({ data: r.data.data ?? [], meta: r.data.meta as unknown as PaginatedMeta })),
 
   cashClosures: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<Record<string, unknown>[]>>('/reports/cash-closures', { params })
+      .get<ApiResponse<Record<string, unknown>[]>>('/reports/cash-closures', { params: serializeReportParams(params) })
       .then((r) => ({ data: r.data.data ?? [], meta: r.data.meta as unknown as PaginatedMeta })),
 
   receipts: (params?: ReportQueryParams) =>
     apiClient
-      .get<ApiResponse<Record<string, unknown>[]>>('/reports/receipts', { params })
+      .get<ApiResponse<Record<string, unknown>[]>>('/reports/receipts', { params: serializeReportParams(params) })
       .then((r) => ({ data: r.data.data ?? [], meta: r.data.meta as unknown as PaginatedMeta })),
 
   /** Exporta a Excel — el backend responde con un blob. */

@@ -6,6 +6,7 @@ import type { Resolver, Control, UseFormSetValue } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { visitorsApi } from '@/api/visitors.api'
+import { vehiclesApi } from '@/api/vehicles.api'
 import { catalogsApi } from '@/api/catalogs.api'
 import { tariffsApi } from '@/api/tariffs.api'
 import { Card } from '@/components/ui/Card'
@@ -73,6 +74,17 @@ const schema = z.object({
   hasRespiratoryDisease: z.boolean().default(false),
   hasAnimalBiteAllergy: z.boolean().default(false),
   animalBiteAllergyDetail: z.string().optional(),
+  hasVehicle: z.boolean().default(false),
+  vehicleTypeId: optionalId,
+  vehiclePlateNumber: z.string().optional(),
+  vehicleIsForeign: z.boolean().default(false),
+  vehicleAppliedRate: z.coerce.number().min(0).optional().default(0),
+  vehicleTotalAmount: z.coerce.number().min(0).optional().default(0),
+  vehicleObservations: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.hasVehicle && !data.vehicleTypeId) {
+    ctx.addIssue({ code: 'custom', path: ['vehicleTypeId'], message: 'Selecciona tipo de vehiculo' })
+  }
 })
 type FormValues = z.infer<typeof schema>
 
@@ -114,6 +126,12 @@ export default function VisitorsPage() {
   const { data: categories = [] } = useQuery({
     queryKey: ['catalogs/visitor-categories'],
     queryFn: () => catalogsApi.visitorCategories.list({ isActive: true }),
+    staleTime: 10 * 60 * 1000,
+  })
+
+  const { data: vehicleTypes = [] } = useQuery({
+    queryKey: ['catalogs/vehicle-types'],
+    queryFn: () => catalogsApi.vehicleTypes.list({ isActive: true }),
     staleTime: 10 * 60 * 1000,
   })
 
@@ -172,6 +190,9 @@ export default function VisitorsPage() {
   const watchCategoryId = watch('visitorCategoryId')
   const watchIsForeign = watch('isForeign') ?? false
   const watchQty = watch('quantity') ?? 1
+  const watchHasVehicle = watch('hasVehicle') ?? false
+  const watchVehicleTypeId = watch('vehicleTypeId')
+  const watchVehicleIsForeign = watch('vehicleIsForeign') ?? false
 
   // Municipios dependientes del departamento seleccionado
   const { data: municipalities = [] } = useQuery({
@@ -202,6 +223,24 @@ export default function VisitorsPage() {
       setValue('totalAmount', rate * (watchQty || 1))
     }
   }, [resolvedTariff, watchQty, watchIsForeign, editId, setValue])
+
+  const { data: resolvedVehicleTariff } = useQuery({
+    queryKey: ['tariffs/resolve-visitor-vehicle', watchVehicleTypeId],
+    queryFn: () =>
+      tariffsApi.resolve({
+        appliesTo: 'VEHICULO',
+        vehicleTypeId: Number(watchVehicleTypeId),
+        date: todayISO(),
+      }),
+    enabled: watchHasVehicle && !!watchVehicleTypeId,
+  })
+
+  useEffect(() => {
+    if (!resolvedVehicleTariff || editId || !watchHasVehicle) return
+    const rate = watchVehicleIsForeign ? resolvedVehicleTariff.amountForeign : resolvedVehicleTariff.amountLocal
+    setValue('vehicleAppliedRate', rate)
+    setValue('vehicleTotalAmount', rate)
+  }, [resolvedVehicleTariff, watchVehicleIsForeign, watchHasVehicle, editId, setValue])
 
   const { data: editRecord } = useQuery({
     queryKey: ['visitors/edit', editId],
@@ -252,6 +291,13 @@ export default function VisitorsPage() {
       hasRespiratoryDisease: editRecord.hasRespiratoryDisease ?? false,
       hasAnimalBiteAllergy: editRecord.hasAnimalBiteAllergy ?? false,
       animalBiteAllergyDetail: editRecord.animalBiteAllergyDetail ?? '',
+      hasVehicle: false,
+      vehicleTypeId: undefined,
+      vehiclePlateNumber: '',
+      vehicleIsForeign: false,
+      vehicleAppliedRate: 0,
+      vehicleTotalAmount: 0,
+      vehicleObservations: '',
     })
   }, [editRecord, reset])
 
@@ -268,10 +314,17 @@ export default function VisitorsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['visitors'] })
       qc.invalidateQueries({ queryKey: ['visitors/today-summary'] })
-      toast.success('Visitante registrado correctamente')
-      handleClose()
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Error al registrar visitante')),
+  })
+
+  const createVehicleMutation = useMutation({
+    mutationFn: vehiclesApi.create,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['vehicles'] })
+      qc.invalidateQueries({ queryKey: ['vehicles/today-summary'] })
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Error al registrar vehiculo')),
   })
 
   const updateMutation = useMutation({
@@ -318,26 +371,36 @@ export default function VisitorsPage() {
   const hasFilters = !!(filterSearch || filterFrom || filterTo || filterCategoryId)
 
   async function onSubmit(values: FormValues) {
+    const {
+      hasVehicle,
+      vehicleTypeId,
+      vehiclePlateNumber,
+      vehicleIsForeign,
+      vehicleAppliedRate,
+      vehicleTotalAmount,
+      vehicleObservations,
+      ...visitorValues
+    } = values
     const companions = (values.companions ?? []).filter(c => c.visitorCategoryId > 0)
     const dto = {
-      ...values,
-      visitorCategoryId: Number(values.visitorCategoryId),
-      quantity: Number(values.quantity) || 1,
-      isForeign: values.isForeign ?? false,
-      appliedRate: Number(values.appliedRate),
-      totalAmount: Number(values.totalAmount),
-      countryId: values.countryId || undefined,
-      departmentId: values.departmentId || undefined,
-      municipalityId: values.municipalityId || undefined,
-      infoSourceId: values.infoSourceId || undefined,
-      travelTypeId: values.travelTypeId || undefined,
-      gender: values.gender || undefined,
-      ageRange: values.ageRange || undefined,
-      visitType: values.visitType || undefined,
-      nationality: values.nationality || undefined,
-      identificationType: values.identificationType || undefined,
-      identificationNumber: values.identificationNumber || undefined,
-      fullName: values.fullName || undefined,
+      ...visitorValues,
+      visitorCategoryId: Number(visitorValues.visitorCategoryId),
+      quantity: Number(visitorValues.quantity) || 1,
+      isForeign: visitorValues.isForeign ?? false,
+      appliedRate: Number(visitorValues.appliedRate),
+      totalAmount: Number(visitorValues.totalAmount),
+      countryId: visitorValues.countryId || undefined,
+      departmentId: visitorValues.departmentId || undefined,
+      municipalityId: visitorValues.municipalityId || undefined,
+      infoSourceId: visitorValues.infoSourceId || undefined,
+      travelTypeId: visitorValues.travelTypeId || undefined,
+      gender: visitorValues.gender || undefined,
+      ageRange: visitorValues.ageRange || undefined,
+      visitType: visitorValues.visitType || undefined,
+      nationality: visitorValues.nationality || undefined,
+      identificationType: visitorValues.identificationType || undefined,
+      identificationNumber: visitorValues.identificationNumber || undefined,
+      fullName: visitorValues.fullName || undefined,
       companions: companions.length > 0 ? companions.map(c => ({
         visitorCategoryId: Number(c.visitorCategoryId),
         quantity: Number(c.quantity) || 1,
@@ -345,18 +408,35 @@ export default function VisitorsPage() {
         appliedRate: Number(c.appliedRate),
         totalAmount: Number(c.totalAmount),
       })) : undefined,
-      hasMedicationAllergy: values.hasMedicationAllergy ?? false,
-      medicationAllergyDetail: values.hasMedicationAllergy ? (values.medicationAllergyDetail || undefined) : undefined,
-      hasDiabetes: values.hasDiabetes ?? false,
-      hasHypertension: values.hasHypertension ?? false,
-      hasRespiratoryDisease: values.hasRespiratoryDisease ?? false,
-      hasAnimalBiteAllergy: values.hasAnimalBiteAllergy ?? false,
-      animalBiteAllergyDetail: values.hasAnimalBiteAllergy ? (values.animalBiteAllergyDetail || undefined) : undefined,
+      hasMedicationAllergy: visitorValues.hasMedicationAllergy ?? false,
+      medicationAllergyDetail: visitorValues.hasMedicationAllergy ? (visitorValues.medicationAllergyDetail || undefined) : undefined,
+      hasDiabetes: visitorValues.hasDiabetes ?? false,
+      hasHypertension: visitorValues.hasHypertension ?? false,
+      hasRespiratoryDisease: visitorValues.hasRespiratoryDisease ?? false,
+      hasAnimalBiteAllergy: visitorValues.hasAnimalBiteAllergy ?? false,
+      animalBiteAllergyDetail: visitorValues.hasAnimalBiteAllergy ? (visitorValues.animalBiteAllergyDetail || undefined) : undefined,
     }
     if (editId) {
       await updateMutation.mutateAsync({ id: editId, dto })
     } else {
-      await createMutation.mutateAsync(dto)
+      const createdVisitor = await createMutation.mutateAsync(dto)
+      if (hasVehicle && vehicleTypeId) {
+        await createVehicleMutation.mutateAsync({
+          vehicleTypeId: Number(vehicleTypeId),
+          visitorRecordId: createdVisitor.id,
+          plateNumber: vehiclePlateNumber || undefined,
+          isForeign: vehicleIsForeign ?? false,
+          appliedRate: Number(vehicleAppliedRate ?? 0),
+          totalAmount: Number(vehicleTotalAmount ?? vehicleAppliedRate ?? 0),
+          observations: vehicleObservations || undefined,
+        })
+        toast.success('Visitante y vehiculo registrados correctamente')
+        handleClose()
+        navigate(`/cobro/VISITANTE/${createdVisitor.id}`)
+      } else {
+        toast.success('Visitante registrado correctamente')
+        handleClose()
+      }
     }
   }
 
@@ -407,7 +487,9 @@ export default function VisitorsPage() {
               Editar
             </Button>
           )}
-          {canCobrar && (
+          {r.isPaid ? (
+            <Badge variant="green">Cobrado</Badge>
+          ) : canCobrar && (
             <Button
               size="sm"
               variant="success"
@@ -512,16 +594,16 @@ export default function VisitorsPage() {
             <Button
               variant="primary"
               onClick={handleSubmit(onSubmit)}
-              disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}
+              disabled={isSubmitting || createMutation.isPending || updateMutation.isPending || createVehicleMutation.isPending}
             >
-              {isSubmitting || createMutation.isPending || updateMutation.isPending
+              {isSubmitting || createMutation.isPending || updateMutation.isPending || createVehicleMutation.isPending
                 ? 'Guardando…'
                 : editId ? 'Actualizar' : 'Registrar visitante'}
             </Button>
           </>
         }
       >
-        {(createMutation.isError || updateMutation.isError) && (
+        {(createMutation.isError || updateMutation.isError || createVehicleMutation.isError) && (
           <div
             style={{
               background: 'var(--danger-light)',
@@ -533,7 +615,7 @@ export default function VisitorsPage() {
               marginBottom: 12,
             }}
           >
-            {getApiErrorMessage(createMutation.error ?? updateMutation.error, 'Error al guardar')}
+            {getApiErrorMessage(createMutation.error ?? updateMutation.error ?? createVehicleMutation.error, 'Error al guardar')}
           </div>
         )}
 
@@ -887,6 +969,98 @@ export default function VisitorsPage() {
           label="¿Es alérgico a la picadura de algún animal?"
           detailLabel="¿Cuál animal?"
         />
+        <div className={styles.divider} />
+
+        <div className={styles.sectionLabel}>Vehiculo</div>
+        <Controller
+          control={control}
+          name="hasVehicle"
+          defaultValue={false}
+          render={({ field }) => (
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: editId ? 'not-allowed' : 'pointer',
+                fontSize: 'var(--text-sm)',
+                marginBottom: 12,
+                userSelect: 'none',
+                opacity: editId ? 0.6 : 1,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={field.value ?? false}
+                disabled={!!editId}
+                onChange={(e) => field.onChange(e.target.checked)}
+                style={{ width: 16, height: 16 }}
+              />
+              <span>Este visitante trae vehiculo</span>
+            </label>
+          )}
+        />
+
+        {watchHasVehicle && !editId && (
+          <>
+            <div className={styles.formGrid3}>
+              <Select
+                label="Tipo de vehiculo *"
+                options={vehicleTypes.map((t) => ({ value: t.id, label: t.name }))}
+                placeholder="-- Seleccionar --"
+                error={errors.vehicleTypeId?.message}
+                {...register('vehicleTypeId')}
+              />
+              <Input
+                label="Placa"
+                placeholder="P-000AAA"
+                {...register('vehiclePlateNumber')}
+              />
+              <Controller
+                control={control}
+                name="vehicleIsForeign"
+                defaultValue={false}
+                render={({ field }) => (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 24, fontSize: 'var(--text-sm)' }}>
+                    <input
+                      type="checkbox"
+                      checked={field.value ?? false}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    />
+                    Vehiculo extranjero
+                  </label>
+                )}
+              />
+            </div>
+            <div className={styles.formGrid3}>
+              <Input
+                label="Tarifa vehiculo (Q)"
+                type="number"
+                step="0.01"
+                min="0"
+                readOnly={!canOverrideTariff}
+                style={!canOverrideTariff ? { background: 'var(--surface-raised)', cursor: 'not-allowed' } : undefined}
+                {...register('vehicleAppliedRate', {
+                  onChange: (e) => setValue('vehicleTotalAmount', Number(e.target.value) || 0),
+                })}
+              />
+              <Input
+                label="Total vehiculo (Q)"
+                type="number"
+                step="0.01"
+                min="0"
+                readOnly
+                style={{ background: 'var(--surface-raised)' }}
+                {...register('vehicleTotalAmount')}
+              />
+              <Input
+                label="Observaciones vehiculo"
+                placeholder="Notas del vehiculo"
+                {...register('vehicleObservations')}
+              />
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   )

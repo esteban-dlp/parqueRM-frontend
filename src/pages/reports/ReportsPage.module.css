@@ -14,6 +14,29 @@
   flex-wrap: wrap;
 }
 
+.filterChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filterChip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: 5px 10px;
+  font-size: var(--text-sm);
+  font-family: var(--font);
+  cursor: pointer;
+}
+
+.filterChipActive {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
 @media (max-width: 640px) {
   .exportBtns {
     margin-left: 0;

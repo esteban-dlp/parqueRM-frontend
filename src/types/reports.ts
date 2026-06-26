@@ -9,6 +9,7 @@ export interface ReportQueryParams extends PaginationParams, DateRangeParams {
   status?: string
   serviceId?: number
   originTypes?: string[]
+  conceptIds?: number[]
 }
 
 export interface ReportVisitorRow {
@@ -55,6 +56,8 @@ export interface CashByPaymentMethodReport {
 /** Estructura real del endpoint GET /reports/income-by-origin */
 export interface IncomeByOriginRow {
   originType: string
+  conceptId?: number
+  conceptName?: string | null
   count: number
   total: number
 }
@@ -78,4 +81,19 @@ export interface SurveyReportRow {
 
 export interface SurveyReport {
   data: SurveyReportRow[]
+  details?: SurveyReportDetail[]
+}
+
+export interface SurveyReportAnswer {
+  questionId: number
+  question: string
+  answerType: 'SCALE_1_5' | 'SCALE_1_10' | 'EMOJI' | null
+  value: number
+}
+
+export interface SurveyReportDetail {
+  responseId: number
+  submittedAt: string
+  generalComment: string | null
+  answers: SurveyReportAnswer[]
 }

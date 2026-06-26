@@ -11,6 +11,9 @@ export interface LocalAccessInfo {
   primaryIp: string | null
   url: string | null
   loginUrl: string | null
+  detectedUrl?: string | null
+  configuredUrl?: string | null
+  requestUrl?: string | null
   ips: LanAddress[]
   timestamp: string
 }

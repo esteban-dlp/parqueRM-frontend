@@ -12,10 +12,12 @@ import { Table, TableActions } from '@/components/ui/Table'
 import { Loading } from '@/components/ui/Loading'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PaginationBar } from '@/components/shared/PaginationBar'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
 import { getApiErrorMessage } from '@/api/client'
 import { PERMISSIONS } from '@/utils/permissions'
+import type { PaginatedMeta } from '@/types/api'
 import type { CatalogItem, CreateCatalogItemDto } from '@/types/catalogs'
 import styles from './CatalogsPage.module.css'
 
@@ -31,6 +33,7 @@ type CatalogKey =
   | 'travelTypes'
   | 'countries'
   | 'departments'
+  | 'municipalities'
 
 const CATALOG_LABELS: Record<CatalogKey, string> = {
   visitorCategories: 'Categorías de visitante',
@@ -44,22 +47,34 @@ const CATALOG_LABELS: Record<CatalogKey, string> = {
   travelTypes: 'Tipos de viaje',
   countries: 'Países',
   departments: 'Departamentos',
+  municipalities: 'Municipios',
 }
 
 const CATALOG_KEYS = Object.keys(CATALOG_LABELS) as CatalogKey[]
+const PAGE_SIZE = 20
 
 export default function CatalogsPage() {
   const canManage = usePermission(PERMISSIONS.CATALOGS_MANAGE)
   const [activeTab, setActiveTab] = useState<CatalogKey>('visitorCategories')
+  const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<CatalogItem | null>(null)
   const qc = useQueryClient()
   const toast = useToast()
 
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ['catalogs', activeTab],
-    queryFn: () => catalogsApi[activeTab].list(),
+  const { data, isLoading } = useQuery({
+    queryKey: ['catalogs', activeTab, page],
+    queryFn: () => catalogsApi[activeTab].listPaged({ page, limit: PAGE_SIZE }),
   })
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ['catalogs/departments/all'],
+    queryFn: () => catalogsApi.departments.list({ isActive: true }),
+    staleTime: 10 * 60 * 1000,
+  })
+
+  const items = data?.data ?? []
+  const meta = data?.meta as PaginatedMeta | undefined
 
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<CreateCatalogItemDto>()
 
@@ -105,21 +120,38 @@ export default function CatalogsPage() {
   }
 
   function handleEdit(item: CatalogItem) {
+    const municipality = item as CatalogItem & { departmentId?: number }
     setEditItem(item)
-    reset({ name: item.name })
+    reset({ name: item.name, departmentId: municipality.departmentId })
     setShowForm(true)
   }
 
   async function onSubmit(values: CreateCatalogItemDto) {
+    const dto: CreateCatalogItemDto = {
+      ...values,
+      departmentId: activeTab === 'municipalities' && values.departmentId
+        ? Number(values.departmentId)
+        : undefined,
+    }
     if (editItem) {
-      await updateMutation.mutateAsync({ id: editItem.id, dto: values })
+      await updateMutation.mutateAsync({ id: editItem.id, dto })
     } else {
-      await createMutation.mutateAsync(values)
+      await createMutation.mutateAsync(dto)
     }
   }
 
   const columns = [
     { key: 'name', header: 'Nombre' },
+    ...(activeTab === 'municipalities'
+      ? [{
+          key: 'department',
+          header: 'Departamento',
+          render: (r: CatalogItem) => {
+            const item = r as CatalogItem & { department?: { name?: string } }
+            return item.department?.name ?? '—'
+          },
+        }]
+      : []),
     {
       key: 'type',
       header: 'Tipo',
@@ -192,7 +224,12 @@ export default function CatalogsPage() {
             key={k}
             type="button"
             className={[styles.tab, activeTab === k ? styles.tabActive : ''].filter(Boolean).join(' ')}
-            onClick={() => { setActiveTab(k); setShowForm(false); setEditItem(null) }}
+            onClick={() => {
+              setActiveTab(k)
+              setPage(1)
+              setShowForm(false)
+              setEditItem(null)
+            }}
           >
             {CATALOG_LABELS[k]}
           </button>
@@ -209,7 +246,12 @@ export default function CatalogsPage() {
             description={canManage ? 'Agrega el primer elemento.' : 'No hay elementos configurados.'}
           />
         ) : (
-          <Table columns={columns} data={items} keyExtractor={(r) => r.id} />
+          <>
+            <Table columns={columns} data={items} keyExtractor={(r) => r.id} />
+            <div style={{ padding: '0 10px' }}>
+              <PaginationBar meta={meta} onPageChange={setPage} />
+            </div>
+          </>
         )}
       </Card>
 
@@ -232,6 +274,14 @@ export default function CatalogsPage() {
         }
       >
         <Input label="Nombre *" {...register('name', { required: 'Requerido' })} />
+        {activeTab === 'municipalities' && (
+          <Select
+            label="Departamento *"
+            options={departments.map((d) => ({ value: d.id, label: d.name }))}
+            placeholder="— Departamento —"
+            {...register('departmentId', { required: 'Requerido' })}
+          />
+        )}
         {activeTab === 'financialConcepts' && (
           <Select
             label="Tipo *"

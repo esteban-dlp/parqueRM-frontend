@@ -38,7 +38,7 @@
 
 .lineRow {
   display: grid;
-  grid-template-columns: 1fr 72px 100px 100px 28px;
+  grid-template-columns: 180px 1fr 72px 100px 100px 28px;
   gap: 6px;
   align-items: end;
   margin-bottom: 6px;
@@ -48,7 +48,13 @@
   .lineRow {
     grid-template-columns: 1fr 60px 80px 28px;
   }
-  .lineRow > :nth-child(3) { display: none; }
+  .lineConcept {
+    grid-column: 1 / -1;
+  }
+  .lineDesc {
+    grid-column: 1 / -1;
+  }
+  .linePrice { display: none; }
 }
 
 .removeLine {

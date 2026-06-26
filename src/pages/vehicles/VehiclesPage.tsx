@@ -253,7 +253,9 @@ export default function VehiclesPage() {
               Editar
             </Button>
           )}
-          {canCobrar && !r.checkOutAt && (
+          {r.isPaid ? (
+            <Badge variant="green">Cobrado</Badge>
+          ) : canCobrar && !r.checkOutAt && (
             <Button
               size="sm"
               variant="success"

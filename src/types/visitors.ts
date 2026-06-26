@@ -51,6 +51,8 @@ export interface VisitorRecord {
   reasons?: { id: number; name: string }[]
   activities?: { id: number; name: string }[]
   companions?: VisitorCompanionLine[]
+  isPaid?: boolean
+  receiptId?: number | null
   createdAt: string
   updatedAt: string
 }

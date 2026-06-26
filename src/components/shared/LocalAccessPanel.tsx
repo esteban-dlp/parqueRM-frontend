@@ -13,7 +13,7 @@ interface LocalAccessPanelProps {
  * compartir "entren a esta URL" con otras computadoras de la red.
  */
 export function LocalAccessPanel({ triggerLabel = 'Ver URL de acceso' }: LocalAccessPanelProps) {
-  const { localAccess, loading, generate, copyUrl } = useLocalAccess()
+  const { localAccess, loading, errorMessage, generate, copyUrl } = useLocalAccess()
 
   return (
     <div>
@@ -21,16 +21,18 @@ export function LocalAccessPanel({ triggerLabel = 'Ver URL de acceso' }: LocalAc
         {loading ? 'Detectando...' : triggerLabel}
       </Button>
 
-      {localAccess && (
+      {(localAccess || errorMessage) && (
         <div className={styles.panel} style={{ marginTop: 10 }}>
-          {localAccess.loginUrl ? (
+          {localAccess?.loginUrl ? (
             <>
               <div className={styles.info}>
                 <span className={styles.label}>URL para otras computadoras de la red</span>
                 <a className={styles.url} href={localAccess.loginUrl} target="_blank" rel="noreferrer">
                   {localAccess.loginUrl}
                 </a>
-                <span className={styles.ip}>IP del servidor: {localAccess.primaryIp}</span>
+                <span className={styles.ip}>
+                  {localAccess.primaryIp ? `IP del servidor: ${localAccess.primaryIp}` : `URL reportada por backend: ${localAccess.url}`}
+                </span>
               </div>
               <Button type="button" size="sm" variant="primary" onClick={copyUrl}>
                 Copiar URL
@@ -38,8 +40,10 @@ export function LocalAccessPanel({ triggerLabel = 'Ver URL de acceso' }: LocalAc
             </>
           ) : (
             <div className={styles.info}>
-              <span className={styles.label}>No se detectó una IP LAN útil</span>
-              <span className={styles.ip}>Revisá que la computadora esté conectada a la red local.</span>
+              <span className={styles.label}>No se pudo generar una URL de red local</span>
+              <span className={styles.ip}>
+                {errorMessage ?? 'El backend no devolvio una URL util. Revisa que la computadora este conectada a la red local.'}
+              </span>
             </div>
           )}
         </div>

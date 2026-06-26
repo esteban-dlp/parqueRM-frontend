@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { reportsApi } from '@/api/reports.api'
 import { parkConfigApi } from '@/api/parkConfig.api'
+import { catalogsApi } from '@/api/catalogs.api'
 import { downloadReportPdf } from '@/utils/pdf'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -11,10 +12,12 @@ import { Table } from '@/components/ui/Table'
 import { Loading } from '@/components/ui/Loading'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PaginationBar } from '@/components/shared/PaginationBar'
 import { usePermission } from '@/hooks/usePermission'
 import { useToast } from '@/hooks/useToast'
 import { PERMISSIONS } from '@/utils/permissions'
 import { formatCurrency, formatDate, formatDateTime, todayISO } from '@/utils/formatters'
+import type { PaginatedMeta } from '@/types/api'
 import type {
   ReportQueryParams,
   ReportVisitorRow,
@@ -288,6 +291,7 @@ function cashByPaymentMethodExportRows(report: CashByPaymentMethodReport): Recor
 function incomeByOriginExportRows(report: IncomeByOriginReport): Record<string, unknown>[] {
   return report.data.map((row) => ({
     'Tipo de ingreso': ORIGIN_TYPE_LABELS[row.originType] ?? row.originType,
+    Concepto: row.conceptName ?? '',
     'Cantidad de operaciones': row.count,
     'Total Q': row.total,
   }))
@@ -301,6 +305,19 @@ function surveyReportExportRows(report: SurveyReport): Record<string, unknown>[]
     'Ocurrencias de esa respuesta': row.dominantCount,
     'Porcentaje (%)': row.percentage,
   }))
+}
+
+function surveyReportDetailRows(report: SurveyReport): Record<string, unknown>[] {
+  return (report.details ?? []).flatMap((response) =>
+    response.answers.map((answer) => ({
+      'ID respuesta': response.responseId,
+      Fecha: formatDateTime(String(response.submittedAt)),
+      Pregunta: answer.question,
+      Respuesta: dominantAnswerLabel(answer.answerType, answer.value),
+      Valor: answer.value,
+      Comentario: response.generalComment ?? '',
+    })),
+  )
 }
 
 async function buildExcelExport(
@@ -323,7 +340,13 @@ async function buildExcelExport(
 
   if (tab === 'surveys') {
     if (!surveyReport?.data.length) return null
-    return { filename: `encuestas-${params.from}.xlsx`, rows: surveyReportExportRows(surveyReport) }
+    return {
+      filename: `encuestas-${params.from}.xlsx`,
+      sheets: [
+        { name: 'Resumen', rows: surveyReportExportRows(surveyReport) },
+        { name: 'Detalle', rows: surveyReportDetailRows(surveyReport) },
+      ],
+    }
   }
 
   if (tab === 'visitors') {
@@ -390,14 +413,25 @@ export default function ReportsPage() {
   const canViewSurveyReport = usePermission(PERMISSIONS.SURVEYS_REPORT_READ)
   const toast = useToast()
   const [tab, setTab] = useState<TabKey>('general')
+  const [page, setPage] = useState(1)
 
   const today = todayISO()
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
   const [originTypes, setOriginTypes] = useState<string[]>([])
+  const [conceptIds, setConceptIds] = useState<number[]>([])
 
   const params = { from, to }
-  const incomeByOriginParams = { ...params, originTypes: originTypes.length ? originTypes : undefined }
+  const listParams = { ...params, page, limit: 20 }
+  const incomeByOriginParams = {
+    ...params,
+    originTypes: originTypes.length ? originTypes : undefined,
+    conceptIds: conceptIds.length ? conceptIds : undefined,
+  }
+
+  useEffect(() => {
+    setPage(1)
+  }, [tab, from, to, originTypes, conceptIds])
 
   const { data: general, isLoading: loadingGeneral } = useQuery({
     queryKey: ['reports/general', params],
@@ -423,33 +457,40 @@ export default function ReportsPage() {
     enabled: tab === 'incomeByOrigin',
   })
 
+  const { data: financialConcepts = [] } = useQuery({
+    queryKey: ['catalogs/financial-concepts-income'],
+    queryFn: () => catalogsApi.financialConcepts.list({ isActive: true, type: 'INGRESO' }),
+    enabled: tab === 'incomeByOrigin',
+    staleTime: 10 * 60 * 1000,
+  })
+
   const { data: visitorsData, isLoading: loadingVisitors } = useQuery({
-    queryKey: ['reports/visitors', params],
-    queryFn: () => reportsApi.visitors(params),
+    queryKey: ['reports/visitors', listParams],
+    queryFn: () => reportsApi.visitors(listParams),
     enabled: tab === 'visitors',
   })
 
   const { data: vehiclesData, isLoading: loadingVehicles } = useQuery({
-    queryKey: ['reports/vehicles', params],
-    queryFn: () => reportsApi.vehicles(params),
+    queryKey: ['reports/vehicles', listParams],
+    queryFn: () => reportsApi.vehicles(listParams),
     enabled: tab === 'vehicles',
   })
 
   const { data: lodgingData, isLoading: loadingLodging } = useQuery({
-    queryKey: ['reports/lodging', params],
-    queryFn: () => reportsApi.lodging(params),
+    queryKey: ['reports/lodging', listParams],
+    queryFn: () => reportsApi.lodging(listParams),
     enabled: tab === 'lodging',
   })
 
   const { data: incomeData, isLoading: loadingIncome } = useQuery({
-    queryKey: ['reports/income', params],
-    queryFn: () => reportsApi.income(params),
+    queryKey: ['reports/income', listParams],
+    queryFn: () => reportsApi.income(listParams),
     enabled: tab === 'income',
   })
 
   const { data: receiptsData, isLoading: loadingReceipts } = useQuery({
-    queryKey: ['reports/receipts', params],
-    queryFn: () => reportsApi.receipts(params),
+    queryKey: ['reports/receipts', listParams],
+    queryFn: () => reportsApi.receipts(listParams),
     enabled: tab === 'receipts',
   })
 
@@ -818,8 +859,17 @@ export default function ReportsPage() {
     setOriginTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
+  function toggleConcept(id: number) {
+    setConceptIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
+
   const vehicleRows = (vehiclesData?.data ?? []) as Record<string, unknown>[]
   const lodgingRows = (lodgingData?.data ?? []) as Record<string, unknown>[]
+  const visitorsMeta = visitorsData?.meta as PaginatedMeta | undefined
+  const vehiclesMeta = vehiclesData?.meta as PaginatedMeta | undefined
+  const lodgingMeta = lodgingData?.meta as PaginatedMeta | undefined
+  const incomeMeta = incomeData?.meta as PaginatedMeta | undefined
+  const receiptsMeta = receiptsData?.meta as PaginatedMeta | undefined
 
   return (
     <div>
@@ -845,6 +895,7 @@ export default function ReportsPage() {
 
       {tab === 'incomeByOrigin' && (
         <Card style={{ marginBottom: 16 }}>
+          <div className={styles.sectionTitle}>Tipos</div>
           <div className={styles.filterRow}>
             {ORIGIN_TYPE_OPTIONS.map((type) => (
               <label key={type} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
@@ -856,6 +907,22 @@ export default function ReportsPage() {
                 {ORIGIN_TYPE_LABELS[type]}
               </label>
             ))}
+          </div>
+          <div className={styles.sectionTitle} style={{ marginTop: 12 }}>Conceptos</div>
+          <div className={styles.filterChips}>
+            {financialConcepts.map((concept) => {
+              const selected = conceptIds.includes(concept.id)
+              return (
+                <button
+                  key={concept.id}
+                  type="button"
+                  className={[styles.filterChip, selected ? styles.filterChipActive : ''].filter(Boolean).join(' ')}
+                  onClick={() => toggleConcept(concept.id)}
+                >
+                  {concept.name}
+                </button>
+              )
+            })}
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
             Sin selección = todos los tipos.
@@ -872,7 +939,10 @@ export default function ReportsPage() {
             key={t}
             type="button"
             className={[styles.tab, tab === t ? styles.tabActive : ''].filter(Boolean).join(' ')}
-            onClick={() => setTab(t)}
+            onClick={() => {
+              setTab(t)
+              setPage(1)
+            }}
           >
             {TAB_LABELS[t]}
           </button>
@@ -891,11 +961,16 @@ export default function ReportsPage() {
               {!visitorsData?.data?.length ? (
                 <EmptyState icon="📊" title="Sin datos" description="No hay visitantes en el rango seleccionado." />
               ) : (
-                <Table
-                  columns={visitorColumns}
-                  data={visitorsData.data}
-                  keyExtractor={(r) => r.id}
-                />
+                <>
+                  <Table
+                    columns={visitorColumns}
+                    data={visitorsData.data}
+                    keyExtractor={(r) => r.id}
+                  />
+                  <div style={{ padding: '0 10px' }}>
+                    <PaginationBar meta={visitorsMeta} onPageChange={setPage} />
+                  </div>
+                </>
               )}
             </Card>
           )}
@@ -904,11 +979,16 @@ export default function ReportsPage() {
               {!vehicleRows.length ? (
                 <EmptyState icon="🚗" title="Sin datos" description="No hay vehículos en el rango seleccionado." />
               ) : (
-                <Table
-                  columns={vehicleColumns}
-                  data={vehicleRows}
-                  keyExtractor={(r) => String(r.id)}
-                />
+                <>
+                  <Table
+                    columns={vehicleColumns}
+                    data={vehicleRows}
+                    keyExtractor={(r) => String(r.id)}
+                  />
+                  <div style={{ padding: '0 10px' }}>
+                    <PaginationBar meta={vehiclesMeta} onPageChange={setPage} />
+                  </div>
+                </>
               )}
             </Card>
           )}
@@ -917,11 +997,16 @@ export default function ReportsPage() {
               {!lodgingRows.length ? (
                 <EmptyState icon="🏕️" title="Sin datos" description="No hay hospedajes en el rango seleccionado." />
               ) : (
-                <Table
-                  columns={lodgingColumns}
-                  data={lodgingRows}
-                  keyExtractor={(r) => String(r.id)}
-                />
+                <>
+                  <Table
+                    columns={lodgingColumns}
+                    data={lodgingRows}
+                    keyExtractor={(r) => String(r.id)}
+                  />
+                  <div style={{ padding: '0 10px' }}>
+                    <PaginationBar meta={lodgingMeta} onPageChange={setPage} />
+                  </div>
+                </>
               )}
             </Card>
           )}
@@ -930,11 +1015,16 @@ export default function ReportsPage() {
               {!incomeRows.length ? (
                 <EmptyState icon="💵" title="Sin ingresos" description="No hay ingresos en el rango seleccionado." />
               ) : (
-                <Table
-                  columns={incomeColumns}
-                  data={incomeRows}
-                  keyExtractor={(row) => String(row.conceptName ?? row.concept ?? JSON.stringify(row).slice(0, 30))}
-                />
+                <>
+                  <Table
+                    columns={incomeColumns}
+                    data={incomeRows}
+                    keyExtractor={(row) => String(row.conceptName ?? row.concept ?? JSON.stringify(row).slice(0, 30))}
+                  />
+                  <div style={{ padding: '0 10px' }}>
+                    <PaginationBar meta={incomeMeta} onPageChange={setPage} />
+                  </div>
+                </>
               )}
             </Card>
           )}
@@ -943,11 +1033,16 @@ export default function ReportsPage() {
               {!receiptsRows.length ? (
                 <EmptyState icon="🧾" title="Sin tickets" description="No hay tickets en el rango seleccionado." />
               ) : (
-                <Table
-                  columns={receiptsColumns}
-                  data={receiptsRows}
-                  keyExtractor={(r) => String(r.id)}
-                />
+                <>
+                  <Table
+                    columns={receiptsColumns}
+                    data={receiptsRows}
+                    keyExtractor={(r) => String(r.id)}
+                  />
+                  <div style={{ padding: '0 10px' }}>
+                    <PaginationBar meta={receiptsMeta} onPageChange={setPage} />
+                  </div>
+                </>
               )}
             </Card>
           )}
@@ -996,6 +1091,11 @@ export default function ReportsPage() {
                         header: 'Tipo de ingreso',
                         render: (r: Record<string, unknown>) => ORIGIN_TYPE_LABELS[String(r.originType)] ?? String(r.originType),
                       },
+                      {
+                        key: 'conceptName',
+                        header: 'Concepto',
+                        render: (r: Record<string, unknown>) => String(r.conceptName ?? 'Sin concepto'),
+                      },
                       { key: 'count', header: 'Cantidad de operaciones', render: (r: Record<string, unknown>) => String(r.count ?? 0) },
                       {
                         key: 'total',
@@ -1004,7 +1104,7 @@ export default function ReportsPage() {
                       },
                     ]}
                     data={incomeByOriginData.data as unknown as Record<string, unknown>[]}
-                    keyExtractor={(r) => String(r.originType)}
+                    keyExtractor={(r) => `${r.originType}-${r.conceptId ?? r.conceptName ?? 'all'}`}
                   />
                   <div className={[styles.reportRow, styles.reportRowTotal].join(' ')} style={{ padding: '12px 16px' }}>
                     <span>Total general ({incomeByOriginData.grandCount} operaciones)</span>
@@ -1018,7 +1118,7 @@ export default function ReportsPage() {
             <Card padding="flush">
               {!surveyReportData?.data.length ? (
                 <EmptyState icon="📝" title="Sin respuestas" description="No hay respuestas de encuesta en el rango seleccionado." />
-              ) : (
+              ) : (<>
                 <Table
                   columns={[
                     { key: 'question', header: 'Pregunta' },
@@ -1043,7 +1143,23 @@ export default function ReportsPage() {
                   data={surveyReportData.data as unknown as Record<string, unknown>[]}
                   keyExtractor={(r) => String(r.questionId)}
                 />
-              )}
+                {!!surveyReportData?.details?.length && (
+                  <div style={{ marginTop: 16, borderTop: '1px solid var(--border)' }}>
+                    <Table
+                      columns={[
+                        { key: 'ID respuesta', header: 'Respuesta', width: '90px', render: (r: Record<string, unknown>) => String(r['ID respuesta'] ?? '') },
+                        { key: 'Fecha', header: 'Fecha' },
+                        { key: 'Pregunta', header: 'Pregunta' },
+                        { key: 'Respuesta', header: 'Respuesta' },
+                        { key: 'Comentario', header: 'Comentario' },
+                      ]}
+                      data={surveyReportDetailRows(surveyReportData) as unknown as Record<string, unknown>[]}
+                      keyExtractor={(r) => `${r['ID respuesta']}-${r.Pregunta}-${r.Valor}`}
+                    />
+                  </div>
+                )}
+              </>)
+              }
             </Card>
           )}
         </>

@@ -232,7 +232,7 @@ export default function LodgingPage() {
     {
       key: 'status',
       header: 'Estado',
-      render: (_r: LodgingRecord) => <Badge variant="teal">Activo</Badge>,
+      render: (r: LodgingRecord) => r.isPaid ? <Badge variant="green">Cobrado</Badge> : <Badge variant="teal">Activo</Badge>,
       width: '80px',
     },
     {
@@ -246,7 +246,9 @@ export default function LodgingPage() {
               Editar
             </Button>
           )}
-          {canCobrar && (
+          {r.isPaid ? (
+            <Badge variant="green">Cobrado</Badge>
+          ) : canCobrar && (
             <Button
               size="sm"
               variant="success"

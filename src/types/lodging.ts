@@ -12,6 +12,8 @@ export interface LodgingRecord {
   totalAmount: number
   isForeign: boolean
   observations: string | null
+  isPaid?: boolean
+  receiptId?: number | null
   createdByUserId: number
   createdAt: string
   updatedAt: string | null
